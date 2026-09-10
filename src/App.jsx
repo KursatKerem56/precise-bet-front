@@ -13,7 +13,11 @@ function App() {
       });
   }, []);
 
-  return <h1>PRECISE BET FRONT END</h1>;
+  return (
+    <>
+      <h1>PRECISE BET FRONT END</h1>;
+    </>
+  );
 }
 
 export default App;
