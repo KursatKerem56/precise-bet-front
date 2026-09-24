@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { ToastProvider } from "./components/Toast";
+import { ThemeToggle } from "./components/ThemeToggle";
 import { DashboardView } from "./views/DashboardView";
 import { MatchesView } from "./views/MatchesView";
 import { ComparedMatchesView } from "./views/ComparedMatchesView";
 import { SiteSettingsView } from "./views/SiteSettingsView";
 import { hasAuthToken, useSampleData } from "./lib/api";
+import { useTheme } from "./lib/useTheme";
 import type { ViewKey } from "./types/navigation";
 
 const NAV_ITEMS: Array<{ key: ViewKey; label: string }> = [
@@ -16,6 +18,7 @@ const NAV_ITEMS: Array<{ key: ViewKey; label: string }> = [
 
 function App() {
   const [view, setView] = useState<ViewKey>("dashboard");
+  useTheme();
 
   return (
     <ToastProvider>
@@ -24,7 +27,9 @@ function App() {
           <div className="app-bar__inner">
             <p className="wordmark">
               Precise Bet
-              {useSampleData ? <span className="wordmark__sample">Sample data</span> : null}
+              {useSampleData ? (
+                <span className="wordmark__sample">Sample data</span>
+              ) : null}
             </p>
 
             <nav className="app-nav" aria-label="Primary">
@@ -40,13 +45,16 @@ function App() {
                 </button>
               ))}
             </nav>
+
+            <ThemeToggle />
           </div>
         </header>
 
         {!hasAuthToken && !useSampleData ? (
           <p className="notice" role="status">
             No auth token is set, so every protected request will fail. Add{" "}
-            <code>VITE_AUTH_TOKEN</code> to your .env file and restart the dev server.
+            <code>VITE_AUTH_TOKEN</code> to your .env file and restart the dev
+            server.
           </p>
         ) : null}
 
