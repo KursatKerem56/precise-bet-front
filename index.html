@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light" />
+    <meta name="color-scheme" content="light dark" />
     <meta
       name="description"
       content="Operational dashboard for comparing football, basketball, volleyball and tennis fixtures across betting sites."
@@ -15,6 +15,23 @@
       rel="stylesheet"
     />
     <title>Precise Bet</title>
+    <script>
+      // Settle the theme before first paint so the page never flashes light.
+      (function () {
+        try {
+          var stored = localStorage.getItem("precise-bet-theme");
+          var theme =
+            stored === "light" || stored === "dark"
+              ? stored
+              : window.matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light";
+          document.documentElement.setAttribute("data-theme", theme);
+        } catch (error) {
+          document.documentElement.setAttribute("data-theme", "light");
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

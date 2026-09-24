@@ -1,19 +1,70 @@
+/* ============================================================
+   Design tokens
+
+   Colour lives here and only here. Every rule below reads a
+   semantic token, so a theme is a swap of this block, not a
+   sweep through the sheet. Light is the base; dark is applied
+   either by the system preference (unless the reader pinned
+   light) or by an explicit data-theme on the root element.
+   ============================================================ */
+
 :root {
+  color-scheme: light;
+
+  /* surfaces, back to front */
   --paper: #edebe6;
+  --bar: #edebe6;
   --sheet: #ffffff;
   --sheet-quiet: #f7f5f1;
+  --surface-raised: #ffffff;
+  --row-hover: #f7f5f1;
+
+  /* text, loud to quiet */
   --ink: #23211e;
   --ink-mid: #5d574e;
   --ink-quiet: #857e73;
+  --ink-faint: #9a9488;
+
+  /* rules */
   --rule: #d5d1c8;
   --rule-strong: #b9b3a7;
+  --rule-heavy: #23211e;
+  --rule-hover: #23211e;
 
+  /* accent and status */
   --flag: #c8202e;
   --flag-quiet: #fbecec;
+  --flag-solid: #c8202e;
+  --flag-solid-hover: #a81a26;
+  --flag-on: #ffffff;
   --agree: #2d6a4a;
   --agree-quiet: #ecf2ed;
   --hold: #9a7b16;
   --hold-quiet: #f9f2dd;
+  --focus: #c8202e;
+
+  /* controls */
+  --btn-bg: #ffffff;
+  --btn-bg-hover: #ffffff;
+  --btn-disabled-bg: #d5d1c8;
+  --btn-disabled-ink: #f7f5f1;
+  --field-bg: #ffffff;
+  --field-disabled-bg: #f7f5f1;
+
+  /* incidental */
+  --skeleton: #d5d1c8;
+  --skeleton-opacity: 0.45;
+  --shadow-pop: 0 6px 20px rgba(35, 33, 30, 0.18);
+  --selection: #f3d9db;
+  --scroll-thumb: #c9c4b9;
+  --scroll-thumb-hover: #aaa397;
+  --underline-quiet: #b9b3a7;
+
+  /* sport dots */
+  --sport-football: #2d6a4a;
+  --sport-basketball: #a9601b;
+  --sport-volleyball: #35618c;
+  --sport-tennis: #6f6230;
 
   --font: "Archivo", "Helvetica Neue", Arial, sans-serif;
 
@@ -33,6 +84,115 @@
   --s5: 1.5rem;
   --s6: 2rem;
   --s7: 3rem;
+}
+
+/* Dark: graphite surfaces rather than black, so the paper-and-rule
+   look survives. Five steps of surface (canvas, bar, card, quiet,
+   raised) keep panels legible without leaning on shadow. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --paper: #0f1218;
+    --bar: #141922;
+    --sheet: #181d25;
+    --sheet-quiet: #1f242e;
+    --surface-raised: #1e242e;
+    --row-hover: #232935;
+
+    --ink: #e7ecf3;
+    --ink-mid: #a6b0be;
+    --ink-quiet: #7b8595;
+    --ink-faint: #5c6675;
+
+    --rule: #272d38;
+    --rule-strong: #38414f;
+    --rule-heavy: #4b5565;
+    --rule-hover: #8a94a3;
+
+    --flag: #f2696f;
+    --flag-quiet: #331a1e;
+    --flag-solid: #d7343f;
+    --flag-solid-hover: #e8525c;
+    --flag-on: #ffffff;
+    --agree: #5cc98f;
+    --agree-quiet: #16281f;
+    --hold: #e0b04a;
+    --hold-quiet: #2c2413;
+    --focus: #f2696f;
+
+    --btn-bg: #1e242e;
+    --btn-bg-hover: #262d38;
+    --btn-disabled-bg: #262c36;
+    --btn-disabled-ink: #6b7482;
+    --field-bg: #12161d;
+    --field-disabled-bg: #161a21;
+
+    --skeleton: #2a313d;
+    --skeleton-opacity: 0.6;
+    --shadow-pop: 0 12px 28px rgba(0, 0, 0, 0.45);
+    --selection: #3a2024;
+    --scroll-thumb: #333b47;
+    --scroll-thumb-hover: #454f5e;
+    --underline-quiet: #5c6675;
+
+    --sport-football: #5cc98f;
+    --sport-basketball: #e09550;
+    --sport-volleyball: #6ba8e5;
+    --sport-tennis: #c3b25e;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --paper: #0f1218;
+  --bar: #141922;
+  --sheet: #181d25;
+  --sheet-quiet: #1f242e;
+  --surface-raised: #1e242e;
+  --row-hover: #232935;
+
+  --ink: #e7ecf3;
+  --ink-mid: #a6b0be;
+  --ink-quiet: #7b8595;
+  --ink-faint: #5c6675;
+
+  --rule: #272d38;
+  --rule-strong: #38414f;
+  --rule-heavy: #4b5565;
+  --rule-hover: #8a94a3;
+
+  --flag: #f2696f;
+  --flag-quiet: #331a1e;
+  --flag-solid: #d7343f;
+  --flag-solid-hover: #e8525c;
+  --flag-on: #ffffff;
+  --agree: #5cc98f;
+  --agree-quiet: #16281f;
+  --hold: #e0b04a;
+  --hold-quiet: #2c2413;
+  --focus: #f2696f;
+
+  --btn-bg: #1e242e;
+  --btn-bg-hover: #262d38;
+  --btn-disabled-bg: #262c36;
+  --btn-disabled-ink: #6b7482;
+  --field-bg: #12161d;
+  --field-disabled-bg: #161a21;
+
+  --skeleton: #2a313d;
+  --skeleton-opacity: 0.6;
+  --shadow-pop: 0 12px 28px rgba(0, 0, 0, 0.45);
+  --selection: #3a2024;
+  --scroll-thumb: #333b47;
+  --scroll-thumb-hover: #454f5e;
+  --underline-quiet: #5c6675;
+
+  --sport-football: #5cc98f;
+  --sport-basketball: #e09550;
+  --sport-volleyball: #6ba8e5;
+  --sport-tennis: #c3b25e;
 }
 
 *,
@@ -55,6 +215,56 @@ body {
   line-height: 1.45;
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--selection);
+  color: var(--ink);
+}
+
+/* Scrollbars follow the rules, not the OS default. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: var(--scroll-thumb);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+  background-clip: content-box;
+}
+
+/* Themed surfaces ease across the swap; everything else stays instant. */
+body,
+.app-bar,
+.sheet,
+.fixture-league,
+.button,
+.theme-toggle,
+.field__control,
+.empty,
+.failure,
+.toast,
+.badge {
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
 }
 
 h1,
@@ -80,7 +290,7 @@ a:hover {
 }
 
 :focus-visible {
-  outline: 2px solid var(--flag);
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
@@ -108,7 +318,7 @@ a:hover {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: var(--paper);
+  background: var(--bar);
   border-bottom: 1px solid var(--rule-strong);
 }
 
@@ -133,6 +343,20 @@ a:hover {
   letter-spacing: -0.02em;
 }
 
+.wordmark__home {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.wordmark__home:hover {
+  color: var(--flag);
+}
+
 .wordmark__sample {
   font-size: var(--step-tiny);
   font-weight: 500;
@@ -141,9 +365,38 @@ a:hover {
   border-bottom: 1px solid var(--hold);
 }
 
+.app-bar__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  min-width: 0;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--rule-strong);
+  border-radius: 2px;
+  background: var(--btn-bg);
+  color: var(--ink-mid);
+  cursor: pointer;
+}
+
+.theme-toggle:hover {
+  background: var(--btn-bg-hover);
+  border-color: var(--rule-hover);
+  color: var(--ink);
+}
+
 .app-nav {
   display: flex;
   gap: var(--s4);
+  min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -213,7 +466,7 @@ a:hover {
   gap: var(--s4);
   flex-wrap: wrap;
   padding-bottom: var(--s3);
-  border-bottom: 2px solid var(--ink);
+  border-bottom: 2px solid var(--rule-heavy);
 }
 
 .page-head__title {
@@ -351,7 +604,7 @@ a:hover {
   padding: 0 var(--s3);
   border: 1px solid var(--rule-strong);
   border-radius: 2px;
-  background: var(--sheet);
+  background: var(--btn-bg);
   color: var(--ink);
   font-family: inherit;
   font-size: var(--step-0);
@@ -361,31 +614,33 @@ a:hover {
 }
 
 .button:hover:not(:disabled) {
-  border-color: var(--ink);
+  background: var(--btn-bg-hover);
+  border-color: var(--rule-hover);
 }
 
 .button:disabled {
-  color: var(--ink-quiet);
+  background: var(--btn-bg);
+  color: var(--ink-faint);
   border-color: var(--rule);
   cursor: not-allowed;
 }
 
 .button--primary {
-  background: var(--flag);
-  border-color: var(--flag);
-  color: #fff;
+  background: var(--flag-solid);
+  border-color: var(--flag-solid);
+  color: var(--flag-on);
   font-weight: 600;
 }
 
 .button--primary:hover:not(:disabled) {
-  background: #a81a26;
-  border-color: #a81a26;
+  background: var(--flag-solid-hover);
+  border-color: var(--flag-solid-hover);
 }
 
 .button--primary:disabled {
-  background: var(--rule);
-  border-color: var(--rule);
-  color: var(--sheet-quiet);
+  background: var(--btn-disabled-bg);
+  border-color: var(--btn-disabled-bg);
+  color: var(--btn-disabled-ink);
 }
 
 .button--quiet {
@@ -395,10 +650,11 @@ a:hover {
   padding: 0 var(--s1);
   min-height: 28px;
   text-decoration: underline;
-  text-decoration-color: var(--rule-strong);
+  text-decoration-color: var(--underline-quiet);
 }
 
 .button--quiet:hover:not(:disabled) {
+  background: none;
   border-color: transparent;
   color: var(--flag);
   text-decoration-color: currentColor;
@@ -447,7 +703,7 @@ a:hover {
 }
 
 .data-table__row:hover td {
-  background: var(--sheet-quiet);
+  background: var(--row-hover);
 }
 
 .align-end {
@@ -571,7 +827,7 @@ a:hover {
   justify-content: space-between;
   gap: var(--s3);
   padding-bottom: var(--s2);
-  border-bottom: 2px solid var(--ink);
+  border-bottom: 2px solid var(--rule-heavy);
 }
 
 .fixture-day__date {
@@ -624,19 +880,19 @@ a:hover {
 }
 
 .tag--football .tag__dot {
-  background: #2d6a4a;
+  background: var(--sport-football);
 }
 
 .tag--basketball .tag__dot {
-  background: #a9601b;
+  background: var(--sport-basketball);
 }
 
 .tag--volleyball .tag__dot {
-  background: #35618c;
+  background: var(--sport-volleyball);
 }
 
 .tag--tennis .tag__dot {
-  background: #6f6230;
+  background: var(--sport-tennis);
 }
 
 .site-name {
@@ -738,11 +994,28 @@ a:hover {
   padding: 0 var(--s2);
   border: 1px solid var(--rule-strong);
   border-radius: 2px;
-  background: var(--sheet);
+  background: var(--field-bg);
   color: var(--ink);
   font-family: inherit;
   font-size: var(--step-0);
   text-overflow: ellipsis;
+}
+
+.field__control::placeholder {
+  color: var(--ink-quiet);
+  opacity: 1;
+}
+
+.field__control:focus-visible {
+  border-color: var(--focus);
+}
+
+.field__control:-webkit-autofill,
+.field__control:-webkit-autofill:hover,
+.field__control:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--ink);
+  -webkit-box-shadow: 0 0 0 100px var(--field-bg) inset;
+  caret-color: var(--ink);
 }
 
 .field__control--with-icon {
@@ -754,8 +1027,14 @@ a:hover {
 }
 
 .field__control:disabled {
-  background: var(--sheet-quiet);
-  color: var(--ink-quiet);
+  background: var(--field-disabled-bg);
+  border-color: var(--rule);
+  color: var(--ink-faint);
+  cursor: not-allowed;
+}
+
+.field__wrap:has(.field__control:disabled) .field__icon {
+  color: var(--ink-faint);
 }
 
 .field__control--invalid {
@@ -1031,8 +1310,8 @@ a:hover {
 .skeleton {
   display: block;
   border-radius: 2px;
-  background: var(--rule);
-  opacity: 0.45;
+  background: var(--skeleton);
+  opacity: var(--skeleton-opacity);
   animation: pulse 1.6s ease-in-out infinite;
 }
 
@@ -1076,11 +1355,11 @@ a:hover {
   align-items: flex-start;
   gap: var(--s2);
   padding: var(--s3);
-  border: 1px solid var(--ink);
+  border: 1px solid var(--rule-heavy);
   border-left-width: 3px;
   border-radius: 2px;
-  background: var(--sheet);
-  box-shadow: 0 6px 20px rgba(35, 33, 30, 0.18);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-pop);
   animation: toast-in 140ms ease-out;
 }
 
@@ -1170,6 +1449,11 @@ a:hover {
     gap: 0;
     padding: var(--s3) var(--s4) 0;
     min-height: 0;
+  }
+
+  .app-bar__tools {
+    justify-content: space-between;
+    gap: var(--s3);
   }
 
   .app-nav {
