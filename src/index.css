@@ -294,6 +294,7 @@ a:hover {
 /* ---------------- sheets ---------------- */
 
 .sheet {
+  min-width: 0;
   background: var(--sheet);
   border: 1px solid var(--rule);
   border-radius: 2px;
@@ -411,11 +412,12 @@ a:hover {
 
 .table-scroll {
   width: 100%;
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 
 .data-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: var(--step-0);
 }
@@ -436,6 +438,8 @@ a:hover {
   padding: var(--s3) var(--s4);
   border-bottom: 1px solid var(--rule);
   vertical-align: middle;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .data-table tbody tr:last-child td {
@@ -467,7 +471,6 @@ a:hover {
 
 .cell-quiet {
   color: var(--ink-mid);
-  white-space: nowrap;
 }
 
 .cell-fixture {
