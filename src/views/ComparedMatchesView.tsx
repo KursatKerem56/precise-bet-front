@@ -12,10 +12,25 @@ import { ApiErrorState } from "../components/ApiErrorState";
 import { useApiResource } from "../lib/useApiResource";
 import { fetchComparedMatches, fetchMatches } from "../lib/dataSource";
 import { buildComparisonRecords, flattenMatches, uniqueSorted } from "../lib/transform";
-import { formatDate, formatNumber, formatRelative, formatTimestamp } from "../lib/format";
+import {
+  formatDate,
+  formatNumber,
+  formatRelative,
+  formatTimestamp,
+  timeToMinutes,
+} from "../lib/format";
 import { SITES, SITE_LABELS, SPORT_LABELS, type Site } from "../types/domain";
+import type { ComparisonRecord } from "../types/comparison";
 
 const ALL = "ALL";
+
+/** Earliest kick-off reported by any site; unknown times sort last. */
+function kickOffMinutes(record: ComparisonRecord): number {
+  const times = [...record.siteTimes.map((entry) => entry.time), record.referenceTime]
+    .map(timeToMinutes)
+    .filter((value): value is number => value !== null);
+  return times.length > 0 ? Math.min(...times) : Number.MAX_SAFE_INTEGER;
+}
 
 export function ComparedMatchesView() {
   const compared = useApiResource(fetchComparedMatches);
@@ -65,7 +80,12 @@ export function ComparedMatchesView() {
         .filter(
           (record) => site === ALL || record.siteTimes.some((entry) => entry.site === site),
         )
-        .sort((a, b) => a.date.localeCompare(b.date) || a.home.localeCompare(b.home)),
+        .sort(
+          (a, b) =>
+            a.date.localeCompare(b.date) ||
+            kickOffMinutes(a) - kickOffMinutes(b) ||
+            a.home.localeCompare(b.home),
+        ),
     [records, sport, league, date, site],
   );
 
