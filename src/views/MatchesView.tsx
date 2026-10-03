@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import { DataTable } from "../components/DataTable";
@@ -60,7 +60,7 @@ function groupByDayAndLeague(records: MatchRecord[]): DayGroup[] {
     }));
 }
 
-export function MatchesView() {
+export function MatchesView({ autoRefreshSignal }: { autoRefreshSignal: number }) {
   const matches = useApiResource(fetchMatches);
   const [site, setSite] = useState<Site>("VIRUS_BET");
   const [sport, setSport] = useState(ALL);
@@ -141,6 +141,10 @@ export function MatchesView() {
     selectSite(SITES[nextIndex]!);
     tabRefs.current[nextIndex]?.focus();
   };
+
+  useEffect(() => {
+    if (autoRefreshSignal > 0) matches.reload();
+  }, [autoRefreshSignal, matches.reload]);
 
   return (
     <>

@@ -33,7 +33,7 @@ function validateUrl(value: string): string | null {
   return null;
 }
 
-export function SiteSettingsView() {
+export function SiteSettingsView({ autoRefreshSignal }: { autoRefreshSignal: number }) {
   const links = useApiResource(fetchSiteLinks);
   const toast = useToast();
 
@@ -54,6 +54,10 @@ export function SiteSettingsView() {
   useEffect(() => {
     if (!dirty) setUrl(linkBySite.get(site)?.link ?? "");
   }, [linkBySite, site, dirty]);
+
+  useEffect(() => {
+    if (autoRefreshSignal > 0) links.reload();
+  }, [autoRefreshSignal, links.reload]);
 
   const validationError = validateUrl(url);
   const showValidation = touched && validationError !== null;

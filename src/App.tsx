@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { ToastProvider } from "./components/Toast";
 import { DashboardView } from "./views/DashboardView";
@@ -22,7 +22,21 @@ function App() {
   const [fetcherStatus, setFetcherStatus] = useState<FetcherStatus | "unknown">(
     "unknown",
   );
+  const [autoUpdate, setAutoUpdate] = useState(false);
+  const [autoRefreshSignal, setAutoRefreshSignal] = useState(0);
+  const previousFetcherStatus = useRef<FetcherStatus | "unknown">("unknown");
   const { theme, toggleTheme } = useTheme();
+
+  useEffect(() => {
+    if (
+      autoUpdate &&
+      previousFetcherStatus.current === "fetching" &&
+      fetcherStatus === "idle"
+    ) {
+      setAutoRefreshSignal((value) => value + 1);
+    }
+    previousFetcherStatus.current = fetcherStatus;
+  }, [autoUpdate, fetcherStatus]);
 
   useEffect(() => {
     if (useSampleData) return;
@@ -73,6 +87,19 @@ function App() {
             </p>
 
             <div className="app-bar__tools">
+              <button
+                type="button"
+                className={`auto-update-toggle${autoUpdate ? " auto-update-toggle--on" : ""}`}
+                role="switch"
+                aria-checked={autoUpdate}
+                onClick={() => setAutoUpdate((enabled) => !enabled)}
+              >
+                <span className="auto-update-toggle__track" aria-hidden="true">
+                  <span className="auto-update-toggle__thumb" />
+                </span>
+                Auto-update
+              </button>
+
               <div
                 className={`fetcher-status fetcher-status--${fetcherStatus}`}
                 role="status"
@@ -115,10 +142,16 @@ function App() {
         ) : null}
 
         <main className="app-main">
-          {view === "dashboard" ? <DashboardView onNavigate={setView} /> : null}
-          {view === "matches" ? <MatchesView /> : null}
-          {view === "compared" ? <ComparedMatchesView /> : null}
-          {view === "settings" ? <SiteSettingsView /> : null}
+          {view === "dashboard" ? (
+            <DashboardView onNavigate={setView} autoRefreshSignal={autoRefreshSignal} />
+          ) : null}
+          {view === "matches" ? <MatchesView autoRefreshSignal={autoRefreshSignal} /> : null}
+          {view === "compared" ? (
+            <ComparedMatchesView autoRefreshSignal={autoRefreshSignal} />
+          ) : null}
+          {view === "settings" ? (
+            <SiteSettingsView autoRefreshSignal={autoRefreshSignal} />
+          ) : null}
         </main>
       </div>
     </ToastProvider>

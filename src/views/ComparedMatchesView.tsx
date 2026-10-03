@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import { Panel } from "../components/Panel";
@@ -32,7 +32,7 @@ function kickOffMinutes(record: ComparisonRecord): number {
   return times.length > 0 ? Math.min(...times) : Number.MAX_SAFE_INTEGER;
 }
 
-export function ComparedMatchesView() {
+export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: number }) {
   const compared = useApiResource(fetchComparedMatches);
   const matches = useApiResource(fetchMatches);
 
@@ -106,6 +106,10 @@ export function ComparedMatchesView() {
     compared.reload();
     matches.reload();
   };
+
+  useEffect(() => {
+    if (autoRefreshSignal > 0) refreshAll();
+  }, [autoRefreshSignal]);
 
   return (
     <>

@@ -372,6 +372,57 @@ a:hover {
   min-width: 0;
 }
 
+.auto-update-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-mid);
+  font: inherit;
+  font-size: var(--step-tiny);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.auto-update-toggle__track {
+  position: relative;
+  width: 26px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--rule-strong);
+  transition: background 140ms ease;
+}
+
+.auto-update-toggle__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--sheet);
+  transition: transform 140ms ease;
+}
+
+.auto-update-toggle--on {
+  color: var(--agree);
+}
+
+.auto-update-toggle--on .auto-update-toggle__track {
+  background: var(--agree);
+}
+
+.auto-update-toggle--on .auto-update-toggle__thumb {
+  transform: translateX(12px);
+}
+
+.auto-update-toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
 .fetcher-status {
   display: inline-flex;
   align-items: center;

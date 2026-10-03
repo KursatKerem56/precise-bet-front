@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { RefreshCw } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import { Panel } from "../components/Panel";
@@ -31,7 +31,13 @@ const COVERAGE_COLUMNS: TableColumn[] = [
 
 const PREVIEW_LIMIT = 6;
 
-export function DashboardView({ onNavigate }: { onNavigate: (view: ViewKey) => void }) {
+export function DashboardView({
+  onNavigate,
+  autoRefreshSignal,
+}: {
+  onNavigate: (view: ViewKey) => void;
+  autoRefreshSignal: number;
+}) {
   const compared = useApiResource(fetchComparedMatches);
   const matches = useApiResource(fetchMatches);
 
@@ -67,6 +73,10 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: ViewKey) => v
     compared.reload();
     matches.reload();
   };
+
+  useEffect(() => {
+    if (autoRefreshSignal > 0) refreshAll();
+  }, [autoRefreshSignal]);
 
   return (
     <>
