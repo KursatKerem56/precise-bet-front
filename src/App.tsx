@@ -73,20 +73,6 @@ function App() {
             </p>
 
             <div className="app-bar__tools">
-              <nav className="app-nav" aria-label="Primary">
-                {NAV_ITEMS.map((item) => (
-                  <button
-                    key={item.key}
-                    type="button"
-                    className={`app-nav__item${view === item.key ? " app-nav__item--active" : ""}`}
-                    aria-current={view === item.key ? "page" : undefined}
-                    onClick={() => setView(item.key)}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </nav>
-
               <div
                 className={`fetcher-status fetcher-status--${fetcherStatus}`}
                 role="status"
@@ -101,6 +87,20 @@ function App() {
                       : "Unavailable"}
                 </span>
               </div>
+
+              <nav className="app-nav" aria-label="Primary">
+                {NAV_ITEMS.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    className={`app-nav__item${view === item.key ? " app-nav__item--active" : ""}`}
+                    aria-current={view === item.key ? "page" : undefined}
+                    onClick={() => setView(item.key)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </nav>
 
               <ThemeToggle theme={theme} onToggle={toggleTheme} />
             </div>
