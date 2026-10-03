@@ -19,6 +19,8 @@ export const hasAuthToken = AUTH_TOKEN.trim().length > 0;
 
 export const apiBaseUrl = API_URL;
 
+export type FetcherStatus = "fetching" | "idle";
+
 const client: AxiosInstance = axios.create({
   baseURL: API_URL,
   timeout: 20000,
@@ -120,6 +122,31 @@ export function getComparedMatches(
 ): Promise<ComparedMatchesResponse> {
   return request<ComparedMatchesResponse>(() =>
     client.get("/panel/compared-matches", { signal }),
+  );
+}
+
+export async function getFetcherStatus(
+  signal?: AbortSignal,
+): Promise<FetcherStatus> {
+  const data = await request<unknown>(() =>
+    client.get("/panel/fetcher-status", { signal }),
+  );
+
+  const status =
+    typeof data === "string"
+      ? data
+      : typeof data === "object" && data !== null
+        ? (data as Record<string, unknown>).status ??
+          (data as Record<string, unknown>).state ??
+          (data as Record<string, unknown>).fetcher_status
+        : null;
+
+  if (status === "fetching" || status === "idle") return status;
+  throw new ApiError(
+    "unknown",
+    "The fetcher status response was not recognized.",
+    null,
+    null,
   );
 }
 

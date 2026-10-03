@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { ToastProvider } from "./components/Toast";
 import { DashboardView } from "./views/DashboardView";
 import { MatchesView } from "./views/MatchesView";
 import { ComparedMatchesView } from "./views/ComparedMatchesView";
 import { SiteSettingsView } from "./views/SiteSettingsView";
-import { hasAuthToken, useSampleData } from "./lib/api";
+import { getFetcherStatus, hasAuthToken, useSampleData } from "./lib/api";
+import type { FetcherStatus } from "./lib/api";
 import { useTheme } from "./lib/useTheme";
 import type { ViewKey } from "./types/navigation";
 
@@ -18,7 +19,41 @@ const NAV_ITEMS: Array<{ key: ViewKey; label: string }> = [
 
 function App() {
   const [view, setView] = useState<ViewKey>("dashboard");
+  const [fetcherStatus, setFetcherStatus] = useState<FetcherStatus | "unknown">(
+    "unknown",
+  );
   const { theme, toggleTheme } = useTheme();
+
+  useEffect(() => {
+    if (useSampleData) return;
+
+    let active = true;
+    let controller: AbortController | null = null;
+
+    const refreshStatus = async () => {
+      controller?.abort();
+      const requestController = new AbortController();
+      controller = requestController;
+
+      try {
+        const status = await getFetcherStatus(requestController.signal);
+        if (active) setFetcherStatus(status);
+      } catch (error: unknown) {
+        if (active && !requestController.signal.aborted) {
+          setFetcherStatus("unknown");
+        }
+      }
+    };
+
+    void refreshStatus();
+    const interval = window.setInterval(() => void refreshStatus(), 5000);
+
+    return () => {
+      active = false;
+      controller?.abort();
+      window.clearInterval(interval);
+    };
+  }, []);
 
   return (
     <ToastProvider>
@@ -51,6 +86,21 @@ function App() {
                   </button>
                 ))}
               </nav>
+
+              <div
+                className={`fetcher-status fetcher-status--${fetcherStatus}`}
+                role="status"
+                aria-label={`Fetcher status: ${fetcherStatus}`}
+              >
+                <span className="fetcher-status__indicator" aria-hidden="true" />
+                <span>
+                  {fetcherStatus === "fetching"
+                    ? "Fetching"
+                    : fetcherStatus === "idle"
+                      ? "Idle"
+                      : "Unavailable"}
+                </span>
+              </div>
 
               <ThemeToggle theme={theme} onToggle={toggleTheme} />
             </div>

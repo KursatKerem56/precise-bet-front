@@ -372,6 +372,31 @@ a:hover {
   min-width: 0;
 }
 
+.fetcher-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--ink-mid);
+  font-size: var(--step-tiny);
+  white-space: nowrap;
+}
+
+.fetcher-status__indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-quiet);
+}
+
+.fetcher-status--fetching .fetcher-status__indicator {
+  background: var(--hold);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.fetcher-status--idle .fetcher-status__indicator {
+  background: var(--agree);
+}
+
 .theme-toggle {
   display: inline-flex;
   align-items: center;
