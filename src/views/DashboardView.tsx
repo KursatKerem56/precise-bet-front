@@ -13,7 +13,7 @@ import { SiteTag } from "../components/Tags";
 import { useApiResource } from "../lib/useApiResource";
 import { fetchComparedMatches, fetchMatches } from "../lib/dataSource";
 import {
-  buildComparisonRecords,
+  buildComparedFixtures,
   buildSiteCoverage,
   flattenMatches,
   normalizeSite,
@@ -46,15 +46,17 @@ export function DashboardView({
     () => buildSiteCoverage(matches.data, matchRecords),
     [matches.data, matchRecords],
   );
-  const comparisons = useMemo(
-    () => buildComparisonRecords(compared.data, matchRecords),
-    [compared.data, matchRecords],
-  );
+  const comparisons = useMemo(() => buildComparedFixtures(compared.data), [compared.data]);
 
   const preview = useMemo(
     () =>
       [...comparisons]
-        .sort((a, b) => a.date.localeCompare(b.date) || a.home.localeCompare(b.home))
+        .sort(
+          (a, b) =>
+            a.date.localeCompare(b.date) ||
+            a.sortKey.localeCompare(b.sortKey) ||
+            a.home.localeCompare(b.home),
+        )
         .slice(0, PREVIEW_LIMIT),
     [comparisons],
   );
@@ -82,7 +84,7 @@ export function DashboardView({
     <>
       <PageHeader
         title="Fixture comparison"
-        description="Where the three betting sites agree on kick-off times, and where they don't."
+        description="The same fixture across the betting sites, and where they publish different kick-off times."
         meta={
           generatedAt && !compared.loading ? (
             <>
@@ -151,10 +153,10 @@ export function DashboardView({
           </div>
         ) : (
           <DataTable columns={COMPARISON_COLUMNS} caption="Latest fixtures with differing kick-off times">
-            {busy ? (
+            {compared.loading ? (
               <SkeletonTableRows rows={4} columns={COMPARISON_COLUMNS.length} />
             ) : preview.length > 0 ? (
-              preview.map((record) => <ComparisonRow key={record.id} record={record} />)
+              preview.map((record) => <ComparisonRow key={record.id} fixture={record} />)
             ) : (
               <tr>
                 <td colSpan={COMPARISON_COLUMNS.length}>

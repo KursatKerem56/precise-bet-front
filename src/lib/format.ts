@@ -90,19 +90,19 @@ export function timeToMinutes(value: string | null | undefined): number | null {
   return hours * 60 + minutes;
 }
 
-/** Shortest gap between two clock times, accounting for the midnight wrap. */
-export function minutesBetween(a: string, b: string): number | null {
-  const first = timeToMinutes(a);
-  const second = timeToMinutes(b);
-  if (first === null || second === null) return null;
-  const raw = Math.abs(first - second);
-  return Math.min(raw, 1440 - raw);
-}
-
 export function formatMinutes(value: number | null): string {
   if (value === null) return "—";
+  if (value >= 1440 && value % 1440 === 0) {
+    const days = value / 1440;
+    return `${days} ${days === 1 ? "day" : "days"}`;
+  }
   if (value < 60) return `${value} min`;
   const hours = Math.floor(value / 60);
   const minutes = value % 60;
   return minutes === 0 ? `${hours} hr` : `${hours} hr ${minutes} min`;
+}
+
+/** 30 -> "+30 min", -90 -> "−1 hr 30 min". */
+export function formatSignedMinutes(value: number): string {
+  return `${value < 0 ? "−" : "+"}${formatMinutes(Math.abs(value))}`;
 }

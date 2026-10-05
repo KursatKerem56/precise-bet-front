@@ -1,3 +1,4 @@
+/** Mirrors the backend's EPanelSite enum. */
 export const SITES = ["VIRUS_BET", "MAVI_BET", "BETIST", "ZLOT"] as const;
 export type Site = (typeof SITES)[number];
 

@@ -114,6 +114,7 @@ Valid `site` values:
 MAVI_BET
 BETIST
 VIRUS_BET
+ZLOT
 ```
 
 Successful response:
@@ -187,18 +188,12 @@ Response shape:
     }
   ],
   "MAVI_BET": [],
-  "BETIST": []
+  "BETIST": [],
+  "ZLOT": []
 }
 ```
 
-Supported sports:
-
-```text
-FOOTBALL
-BASKETBALL
-VOLLEYBALL
-TENNIS
-```
+`sport` is a catalog id from the backend (`EMatchSport`): `FOOTBALL`, `BASKETBALL`, `VOLLEYBALL`, `ICE_HOCKEY`, `MMA`, `ESPORTS_CS2` and more. Tennis is no longer fetched.
 
 ### GET `/panel/compared-matches`
 
@@ -212,37 +207,58 @@ Authorization: YOUR_AUTH_TOKEN
 
 The response is read from `match-times-diff.json`. Its exact contents may change when the comparison process runs.
 
+Each entry in `farkliMaclar` is **one real-world fixture** that the backend matched across two or more sites and whose kick-off times differ. Fixtures where every site agrees are only counted in `ozet`. The frontend shows these groups as they are and never re-matches teams.
+
 Current response shape:
 
 ```json
 {
-  "olusturulma": "2026-09-16T02:12:22.017Z",
-  "siteler": ["virus_bet", "mavi_bet", "betist"],
+  "olusturulma": "2026-10-02T22:32:59.845Z",
+  "siteler": ["virus_bet", "mavi_bet", "betist", "zlot"],
   "kaynaklar": {},
+  "okunamayan": [],
   "ayarlar": {
     "toleransDakika": 0,
     "takimEsigi": 78,
     "ligEsigi": 55,
     "ligZorunlu": false,
-    "tarihToleransGun": 1
+    "tarihToleransGun": 3
   },
   "ozet": {
-    "toplamMacGrubu": 3414,
-    "karsilastirilabilir": 1248,
-    "saatiFarkli": 152,
-    "saatiAyni": 1096
+    "toplamMacGrubu": 5776,
+    "karsilastirilabilir": 3686,
+    "saatiFarkli": 254,
+    "saatiAyni": 3432,
+    "kapsam": { "1_sitede": 2090, "2_sitede": 1281, "3_sitede": 1038, "4_sitede": 1367 },
+    "siteBazinda": {},
+    "ikiliEslesme": [],
+    "eslestirme": {}
   },
   "farkliMaclar": {
     "FUTBOL": {
-      "LFPB": {
-        "2026-09-18": [
+      "2. Liga": {
+        "2026-10-09": [
           {
             "sport": "FUTBOL",
-            "league": "LFPB",
-            "date": "2026-09-18",
-            "home": "Team A",
-            "away": "Team B",
-            "time": "20:00"
+            "league": "2. Liga",
+            "date": "2026-10-09",
+            "home": "Kapfenberger SV",
+            "away": "FK Austria Wien II",
+            "saatler": { "virus_bet": "19:30", "mavi_bet": "19:30", "betist": "19:00" },
+            "tarihler": { "virus_bet": "2026-10-09", "mavi_bet": "2026-10-09", "betist": "2026-10-09" },
+            "tarihFarkli": false,
+            "maxFarkDakika": 30,
+            "sapanSiteler": [{ "site": "betist", "farkDakika": -30 }],
+            "eksikSiteler": ["zlot"],
+            "ligler": { "virus_bet": "Austria - 2. Liga", "mavi_bet": "Austria - 2. Liga", "betist": "Austria - 2. Liga" },
+            "takimlar": {
+              "virus_bet": "Kapfenberger SV - FK Austria Wien II",
+              "mavi_bet": "Kapfenberg - Austria Wien II",
+              "betist": "Kapfenberger SV - Avusturya (A)"
+            },
+            "eslesme": [
+              { "siteA": "virus_bet", "siteB": "mavi_bet", "kimlik": "fuzzy", "ters": false, "guven": 1 }
+            ]
           }
         ]
       }
@@ -250,6 +266,20 @@ Current response shape:
   }
 }
 ```
+
+Entry fields:
+
+| Field | Meaning |
+| --- | --- |
+| `home`, `away`, `league`, `date` | Canonical fixture, taken from the first site (in `siteler` order) that lists it. Variants such as U19, II or Women are part of the name. |
+| `saatler` / `tarihler` | Kick-off time and date exactly as each site publishes them. All sites are read as Turkey local time (UTC+3); no conversion is applied. |
+| `tarihFarkli` | The sites disagree on the day, not only the clock time. |
+| `maxFarkDakika` | Earliest to latest kick-off in minutes, date differences included. |
+| `sapanSiteler` | Sites whose kick-off differs from the most reported one (ties go to the earliest), with the signed difference in minutes. |
+| `eksikSiteler` | Compared sites that do not list the fixture. |
+| `ligler` / `takimlar` | League and "Home - Away" exactly as each site writes them, in that site's own order. |
+| `eslesme` | How pairs of sites were matched: identity stage (`kimlik`), whether home and away were swapped (`ters`), and confidence in [0, 1] (`guven`). |
+| `okunamayan` | Source files the run could not read, with the reason. |
 
 ## Common Errors
 

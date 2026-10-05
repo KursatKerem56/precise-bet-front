@@ -839,7 +839,7 @@ a:hover {
   display: flex;
   flex-wrap: wrap;
   gap: var(--s4);
-  align-items: flex-end;
+  align-items: flex-start;
 }
 
 .times__entry {
@@ -887,6 +887,146 @@ a:hover {
   font-size: var(--step-small);
   color: var(--ink-quiet);
   align-self: center;
+}
+
+.cell-stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.align-end .cell-stack {
+  align-items: flex-end;
+}
+
+.times__date,
+.times__offset {
+  font-size: var(--step-tiny);
+  color: var(--ink-mid);
+  white-space: nowrap;
+}
+
+.times__entry--differs .times__offset {
+  color: var(--flag);
+  font-weight: 600;
+}
+
+.times__missing {
+  display: block;
+  margin-top: var(--s1);
+  font-size: var(--step-tiny);
+  color: var(--ink-quiet);
+}
+
+.delta--agree {
+  color: var(--agree);
+}
+
+.delta__note {
+  display: block;
+  font-size: var(--step-tiny);
+  color: var(--ink-mid);
+  white-space: nowrap;
+}
+
+.row-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-mid);
+  font: inherit;
+  font-size: var(--step-tiny);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.row-toggle:hover {
+  color: var(--ink);
+}
+
+.row-toggle[aria-expanded="true"] .row-toggle__icon {
+  transform: rotate(180deg);
+}
+
+/* ---------------- fixture details ---------------- */
+
+.data-table__details td {
+  padding-top: 0;
+  background: var(--sheet-quiet);
+}
+
+.fixture-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s3) 0;
+  font-size: var(--step-small);
+}
+
+.fixture-details__summary,
+.fixture-details__note {
+  color: var(--ink-mid);
+}
+
+.fixture-details__heading {
+  margin-bottom: var(--s1);
+  font-size: var(--step-tiny);
+  font-weight: 600;
+  color: var(--ink-mid);
+}
+
+.fixture-details__links ul {
+  margin: 0;
+  padding-left: var(--s4);
+  color: var(--ink-mid);
+}
+
+.source-list {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--rule);
+}
+
+.source-list__row {
+  display: grid;
+  grid-template-columns: 7rem 13rem 6.5rem minmax(0, 1fr);
+  gap: var(--s3);
+  align-items: baseline;
+  padding: var(--s2) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.source-list__site {
+  font-weight: 500;
+}
+
+.source-list__offset {
+  color: var(--ink-quiet);
+  white-space: nowrap;
+}
+
+.source-list__row--differs .source-list__site,
+.source-list__row--differs .source-list__when b,
+.source-list__row--differs .source-list__offset {
+  color: var(--flag);
+}
+
+.source-list__league {
+  display: block;
+  color: var(--ink-quiet);
+}
+
+.run-warning {
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--hold);
+  border-radius: 2px;
+  background: var(--hold-quiet);
+  color: var(--hold);
+  font-size: var(--step-small);
 }
 
 /* ---------------- fixture grouping ---------------- */
@@ -1634,6 +1774,46 @@ a:hover {
 
   .cell-competition {
     text-align: right;
+  }
+
+  .cell-stack {
+    align-items: flex-end;
+    text-align: right;
+  }
+
+  .data-table__details td {
+    display: block;
+    padding: 0 var(--s4);
+  }
+
+  .data-table__details td::before {
+    content: none;
+  }
+
+  .source-list__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "site offset"
+      "when when"
+      "listed listed";
+    gap: 2px var(--s3);
+  }
+
+  .source-list__site {
+    grid-area: site;
+  }
+
+  .source-list__offset {
+    grid-area: offset;
+    text-align: right;
+  }
+
+  .source-list__when {
+    grid-area: when;
+  }
+
+  .source-list__listed {
+    grid-area: listed;
   }
 
   .toasts {

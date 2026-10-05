@@ -9,43 +9,59 @@ import { FilterBar, FilterSelect } from "../components/FilterBar";
 import { SkeletonTableRows } from "../components/Skeleton";
 import { EmptyState } from "../components/EmptyState";
 import { ApiErrorState } from "../components/ApiErrorState";
+import { sportLabel } from "../components/Tags";
 import { useApiResource } from "../lib/useApiResource";
-import { fetchComparedMatches, fetchMatches } from "../lib/dataSource";
-import { buildComparisonRecords, flattenMatches, uniqueSorted } from "../lib/transform";
+import { fetchComparedMatches } from "../lib/dataSource";
 import {
-  formatDate,
-  formatNumber,
-  formatRelative,
-  formatTimestamp,
-  timeToMinutes,
-} from "../lib/format";
-import { SITES, SITE_LABELS, SPORT_LABELS, type Site } from "../types/domain";
-import type { ComparisonRecord } from "../types/comparison";
+  buildComparedFixtures,
+  normalizeSite,
+  normalizeSport,
+  uniqueSorted,
+} from "../lib/transform";
+import { formatDate, formatNumber, formatRelative, formatTimestamp } from "../lib/format";
+import { SITES, SITE_LABELS, type Site } from "../types/domain";
+import type { ComparedFixture } from "../types/comparison";
 
 const ALL = "ALL";
 
-/** Earliest kick-off reported by any site; unknown times sort last. */
-function kickOffMinutes(record: ComparisonRecord): number {
-  const times = [...record.siteTimes.map((entry) => entry.time), record.referenceTime]
-    .map(timeToMinutes)
-    .filter((value): value is number => value !== null);
-  return times.length > 0 ? Math.min(...times) : Number.MAX_SAFE_INTEGER;
+const KINDS = {
+  time: "Same day, different time",
+  day: "Different day",
+} as const;
+
+const SORTS = {
+  kickoff: "Kick-off",
+  spread: "Largest difference",
+  sources: "Most sites",
+} as const;
+type SortKey = keyof typeof SORTS;
+
+function byKickOff(a: ComparedFixture, b: ComparedFixture): number {
+  return (
+    a.date.localeCompare(b.date) ||
+    a.sortKey.localeCompare(b.sortKey) ||
+    a.home.localeCompare(b.home)
+  );
 }
+
+const COMPARATORS: Record<SortKey, (a: ComparedFixture, b: ComparedFixture) => number> = {
+  kickoff: byKickOff,
+  spread: (a, b) => (b.maxDiffMinutes ?? -1) - (a.maxDiffMinutes ?? -1) || byKickOff(a, b),
+  sources: (a, b) => b.sources.length - a.sources.length || byKickOff(a, b),
+};
 
 export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: number }) {
   const compared = useApiResource(fetchComparedMatches);
-  const matches = useApiResource(fetchMatches);
 
   const [sport, setSport] = useState(ALL);
   const [league, setLeague] = useState(ALL);
   const [date, setDate] = useState(ALL);
   const [site, setSite] = useState(ALL);
+  const [siteCount, setSiteCount] = useState(ALL);
+  const [kind, setKind] = useState(ALL);
+  const [sort, setSort] = useState<SortKey>("kickoff");
 
-  const matchRecords = useMemo(() => flattenMatches(matches.data), [matches.data]);
-  const records = useMemo(
-    () => buildComparisonRecords(compared.data, matchRecords),
-    [compared.data, matchRecords],
-  );
+  const records = useMemo(() => buildComparedFixtures(compared.data), [compared.data]);
 
   const sportOptions = useMemo(
     () => uniqueSorted(records.map((record) => record.rawSport)),
@@ -70,6 +86,10 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
       ),
     [records, sport, league],
   );
+  const siteCountOptions = useMemo(
+    () => [...new Set(records.map((record) => record.sources.length))].sort((a, b) => a - b),
+    [records],
+  );
 
   const filtered = useMemo(
     () =>
@@ -78,44 +98,57 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
         .filter((record) => league === ALL || record.league === league)
         .filter((record) => date === ALL || record.date === date)
         .filter(
-          (record) => site === ALL || record.siteTimes.some((entry) => entry.site === site),
+          (record) => site === ALL || record.sources.some((source) => source.site === site),
         )
-        .sort(
-          (a, b) =>
-            a.date.localeCompare(b.date) ||
-            kickOffMinutes(a) - kickOffMinutes(b) ||
-            a.home.localeCompare(b.home),
-        ),
-    [records, sport, league, date, site],
+        .filter((record) => siteCount === ALL || record.sources.length === Number(siteCount))
+        .filter(
+          (record) =>
+            kind === ALL || (kind === "day" ? record.dateDiffers : !record.dateDiffers),
+        )
+        .sort(COMPARATORS[sort]),
+    [records, sport, league, date, site, siteCount, kind, sort],
   );
 
   const summary = compared.data?.ozet ?? {};
+  const comparedSites = (compared.data?.siteler ?? []).length;
+  const onEverySite = summary.kapsam?.[`${comparedSites}_sitede`];
+  const unreadable = (compared.data?.okunamayan ?? [])
+    .map((entry) => {
+      const name = typeof entry?.site === "string" ? entry.site : "";
+      const known = normalizeSite(name);
+      return known ? SITE_LABELS[known] : name;
+    })
+    .filter(Boolean);
   const generatedAt = compared.data?.olusturulma;
   const relative = formatRelative(generatedAt);
-  const busy = compared.loading || matches.loading;
-  const filtersActive = sport !== ALL || league !== ALL || date !== ALL || site !== ALL;
+  const busy = compared.loading;
+  const filtersActive =
+    sport !== ALL ||
+    league !== ALL ||
+    date !== ALL ||
+    site !== ALL ||
+    siteCount !== ALL ||
+    kind !== ALL;
+  const nothingComparable = (summary.karsilastirilabilir ?? 0) === 0;
 
   const resetFilters = () => {
     setSport(ALL);
     setLeague(ALL);
     setDate(ALL);
     setSite(ALL);
-  };
-
-  const refreshAll = () => {
-    compared.reload();
-    matches.reload();
+    setSiteCount(ALL);
+    setKind(ALL);
   };
 
   useEffect(() => {
-    if (autoRefreshSignal > 0) refreshAll();
-  }, [autoRefreshSignal]);
+    if (autoRefreshSignal > 0) compared.reload();
+  }, [autoRefreshSignal, compared.reload]);
 
   return (
     <>
       <PageHeader
         title="Kick-off conflicts"
-        description="Fixtures the last run flagged because the sites report different start times."
+        description="Fixtures listed on two or more sites where the sites publish different start times."
         meta={
           generatedAt && !compared.loading ? (
             <>
@@ -125,7 +158,7 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
           ) : null
         }
         actions={
-          <button type="button" className="button" onClick={refreshAll} disabled={busy}>
+          <button type="button" className="button" onClick={compared.reload} disabled={busy}>
             <RefreshCw size={14} aria-hidden="true" className={busy ? "spin" : undefined} />
             Refresh
           </button>
@@ -136,6 +169,13 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
         <ApiErrorState error={compared.error} onRetry={compared.reload} />
       ) : (
         <>
+          {unreadable.length > 0 && !busy ? (
+            <p className="run-warning" role="status">
+              The last run could not read {unreadable.join(", ")}, so fixtures from{" "}
+              {unreadable.length === 1 ? "that site" : "those sites"} are missing below.
+            </p>
+          ) : null}
+
           <Ledger>
             <MetricCard
               value={formatNumber(summary.toplamMacGrubu)}
@@ -146,7 +186,11 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
             <MetricCard
               value={formatNumber(summary.karsilastirilabilir)}
               label="Comparable"
-              hint="Found on two or more sites"
+              hint={
+                typeof onEverySite === "number" && comparedSites > 2
+                  ? `${formatNumber(onEverySite)} on all ${comparedSites} sites`
+                  : "Found on two or more sites"
+              }
               loading={compared.loading}
             />
             <MetricCard
@@ -186,7 +230,7 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
                 { value: ALL, label: "All sports" },
                 ...sportOptions.map((value) => ({
                   value,
-                  label: SPORT_LABELS[value as keyof typeof SPORT_LABELS] ?? value,
+                  label: sportLabel(normalizeSport(value), value),
                 })),
               ]}
             />
@@ -223,15 +267,42 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
                 ...SITES.map((value: Site) => ({ value, label: SITE_LABELS[value] })),
               ]}
             />
+            <FilterSelect
+              id="compared-site-count"
+              label="Listed on"
+              value={siteCount}
+              onChange={setSiteCount}
+              options={[
+                { value: ALL, label: "Any number of sites" },
+                ...siteCountOptions.map((count) => ({
+                  value: String(count),
+                  label:
+                    count === comparedSites ? `All ${count} sites` : `${count} sites`,
+                })),
+              ]}
+            />
+            <FilterSelect
+              id="compared-kind"
+              label="Disagreement"
+              value={kind}
+              onChange={setKind}
+              options={[
+                { value: ALL, label: "Any" },
+                ...Object.entries(KINDS).map(([value, label]) => ({ value, label })),
+              ]}
+            />
+            <FilterSelect
+              id="compared-sort"
+              label="Sort by"
+              value={sort}
+              onChange={(value) => setSort(value as SortKey)}
+              options={Object.entries(SORTS).map(([value, label]) => ({ value, label }))}
+            />
           </FilterBar>
-
-          {matches.error ? (
-            <ApiErrorState error={matches.error} onRetry={matches.reload} />
-          ) : null}
 
           <Panel
             title="Flagged fixtures"
-            description="Each site's kick-off comes from its own stored fixtures, matched using the run's team and date thresholds."
+            description="One row per real-world fixture, as matched by the comparison run. Each site's kick-off is shown as that site publishes it; red times disagree with the majority. Fixtures where every site agrees are only counted above."
             flush
           >
             <DataTable
@@ -241,7 +312,7 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
               {busy ? (
                 <SkeletonTableRows rows={8} columns={COMPARISON_COLUMNS.length} />
               ) : filtered.length > 0 ? (
-                filtered.map((record) => <ComparisonRow key={record.id} record={record} />)
+                filtered.map((record) => <ComparisonRow key={record.id} fixture={record} />)
               ) : (
                 <tr>
                   <td colSpan={COMPARISON_COLUMNS.length}>
@@ -249,13 +320,17 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
                       bare
                       title={
                         filtersActive
-                          ? "No conflicts match these filters"
-                          : "Every comparable fixture agrees"
+                          ? "No time differences found for these filters"
+                          : nothingComparable
+                            ? "No fixture was found on more than one site"
+                            : "Every comparable fixture agrees"
                       }
                       description={
                         filtersActive
-                          ? "Widen the sport, league, day or site filter to see more."
-                          : "The last run found no kick-off times that differ between sites."
+                          ? "Widen the filters to see more."
+                          : nothingComparable
+                            ? "The last run had nothing to compare. Check that at least two sites were fetched."
+                            : `The last run matched ${formatNumber(summary.karsilastirilabilir)} fixtures across sites and they all report the same kick-off.`
                       }
                       action={
                         filtersActive ? (

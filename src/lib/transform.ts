@@ -1,4 +1,4 @@
-import { SITES, isSport, type Site, type Sport } from "../types/domain";
+import { SITES, SITE_LABELS, isSport, type Site, type Sport } from "../types/domain";
 import type {
   ApiSiteSportDocument,
   MatchRecord,
@@ -7,12 +7,12 @@ import type {
 } from "../types/matches";
 import type {
   ApiDifferentMatch,
+  ComparedFixture,
   ComparedMatchesResponse,
-  ComparisonRecord,
-  ExtraField,
-  SiteTime,
+  FixtureLink,
+  FixtureSource,
 } from "../types/comparison";
-import { minutesBetween } from "./format";
+import { formatTime, timeToMinutes } from "./format";
 
 const SPORT_ALIASES: Record<string, Sport> = {
   FOOTBALL: "FOOTBALL",
@@ -42,42 +42,8 @@ export function normalizeSite(raw: unknown): Site | null {
   return (SITES as readonly string[]).includes(key) ? (key as Site) : null;
 }
 
-/** Lowercase, strip diacritics and punctuation — used for cross-site matching. */
-function normalizeText(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
-function bigrams(value: string): Set<string> {
-  const set = new Set<string>();
-  for (let i = 0; i < value.length - 1; i += 1) set.add(value.slice(i, i + 2));
-  return set;
-}
-
-/** Sørensen–Dice coefficient over character bigrams, in [0, 1]. */
-function similarity(a: string, b: string): number {
-  if (a === b) return 1;
-  if (a.length < 2 || b.length < 2) return 0;
-  const first = bigrams(a);
-  const second = bigrams(b);
-  let shared = 0;
-  for (const gram of first) if (second.has(gram)) shared += 1;
-  return (2 * shared) / (first.size + second.size);
-}
-
 function asString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function shiftDate(date: string, days: number): string | null {
-  const parsed = new Date(`${date}T00:00:00Z`);
-  if (Number.isNaN(parsed.getTime())) return null;
-  parsed.setUTCDate(parsed.getUTCDate() + days);
-  return parsed.toISOString().slice(0, 10);
 }
 
 /** Flattens the nested site → sport → league → date → match payload. */
@@ -155,177 +121,215 @@ export function buildSiteCoverage(
   });
 }
 
-const KNOWN_DIFF_KEYS = new Set(["sport", "league", "date", "home", "away", "time"]);
-
-function extractExtras(entry: ApiDifferentMatch): ExtraField[] {
-  const extras: ExtraField[] = [];
-
-  for (const [key, value] of Object.entries(entry)) {
-    if (KNOWN_DIFF_KEYS.has(key) || value === null || value === undefined) continue;
-
-    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-      const text = String(value).trim();
-      if (text) extras.push({ key, value: text });
-    } else {
-      const text = JSON.stringify(value);
-      if (text && text !== "{}" && text !== "[]") {
-        extras.push({ key, value: text.length > 80 ? `${text.slice(0, 77)}…` : text });
-      }
-    }
-  }
-
-  return extras;
+/** Backend site name ("zlot") -> enum key and display label. */
+function siteIdentity(raw: string): { site: string; label: string } {
+  const site = normalizeSite(raw);
+  return site ? { site, label: SITE_LABELS[site] } : { site: raw, label: raw };
 }
 
-/** Flags every time that disagrees with the most frequently reported one. */
-function markDifferences(times: Array<{ site: Site; time: string }>): SiteTime[] {
-  const counts = new Map<string, number>();
-  for (const { time } of times) counts.set(time, (counts.get(time) ?? 0) + 1);
-
-  if (counts.size <= 1) {
-    return times.map(({ site, time }) => ({ site, time, differs: false }));
-  }
-
-  let baseline = times[0]?.time ?? "";
-  let best = -1;
-  for (const [time, count] of counts) {
-    if (count > best || (count === best && time < baseline)) {
-      best = count;
-      baseline = time;
-    }
-  }
-
-  return times.map(({ site, time }) => ({ site, time, differs: time !== baseline }));
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
-function widestGap(times: SiteTime[]): number | null {
-  let widest: number | null = null;
-  for (let i = 0; i < times.length; i += 1) {
-    for (let j = i + 1; j < times.length; j += 1) {
-      const gap = minutesBetween(times[i]!.time, times[j]!.time);
-      if (gap !== null && (widest === null || gap > widest)) widest = gap;
-    }
-  }
-  return widest;
+function asNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-interface IndexedMatch extends MatchRecord {
-  normalizedHome: string;
-  normalizedAway: string;
+const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * "YYYY-MM-DD HH:MM" for a well-formed date and time, else null. Every site's
+ * times are compared as published (the backend reads them all as Turkey local
+ * time), so no timezone conversion happens here.
+ */
+function kickOffKey(date: string | null, time: string | null): string | null {
+  if (!date || !DATE_KEY.test(date) || timeToMinutes(time) === null) return null;
+  return `${date} ${formatTime(time)}`;
+}
+
+/** Minutes since the epoch for a kick-off key; only used for differences. */
+function keyToMinutes(key: string): number {
+  const [date = "", time = ""] = key.split(" ");
+  const [year, month, day] = date.split("-").map(Number);
+  return Date.UTC(year!, month! - 1, day!) / 60000 + (timeToMinutes(time) ?? 0);
 }
 
 /**
- * Joins `farkliMaclar` entries against GET /panel/matches so each comparison can
- * show the time every site reported. The backend matches teams fuzzily, so the
- * join reuses its own thresholds (`takimEsigi`, `tarihToleransGun`) rather than
- * assuming the team strings are identical across sites.
+ * Fallback for entries without `sapanSiteler`: the backend's own rule — the
+ * most reported kick-off is the reference, ties go to the earliest.
  */
-export function buildComparisonRecords(
+function deviationsFromReference(keys: Array<string | null>): number[] {
+  const counts = new Map<string, number>();
+  for (const key of keys) if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
+
+  let reference: string | null = null;
+  let best = -1;
+  for (const [key, count] of counts) {
+    if (count > best || (count === best && reference !== null && key < reference)) {
+      reference = key;
+      best = count;
+    }
+  }
+
+  return keys.map((key) =>
+    key && reference ? keyToMinutes(key) - keyToMinutes(reference) : 0,
+  );
+}
+
+/** Site order: as the run listed them in `siteler`, then any extras. */
+function orderedSiteNames(entry: ApiDifferentMatch, siteOrder: string[]): string[] {
+  const listed = [
+    ...Object.keys(asRecord(entry.saatler)),
+    ...Object.keys(asRecord(entry.tarihler)),
+  ];
+  const present = new Set(listed);
+  return [
+    ...siteOrder.filter((site) => present.has(site)),
+    ...[...present].filter((site) => !siteOrder.includes(site)),
+  ];
+}
+
+function buildLinks(entry: ApiDifferentMatch): FixtureLink[] {
+  if (!Array.isArray(entry.eslesme)) return [];
+  return entry.eslesme
+    .filter((edge) => edge && typeof edge === "object")
+    .map((edge) => ({
+      siteA: siteIdentity(asString(edge.siteA)).label,
+      siteB: siteIdentity(asString(edge.siteB)).label,
+      method: asString(edge.kimlik) || null,
+      reversed: edge.ters === true,
+      confidence: asNumber(edge.guven),
+    }));
+}
+
+function buildFixture(
+  entry: ApiDifferentMatch,
+  bucket: { sport: string; league: string; date: string },
+  siteOrder: string[],
+  toleranceMinutes: number,
+): Omit<ComparedFixture, "id"> {
+  const times = asRecord(entry.saatler);
+  const dates = asRecord(entry.tarihler);
+  const teams = asRecord(entry.takimlar);
+  const leagues = asRecord(entry.ligler);
+
+  const rawSport = asString(entry.sport) || bucket.sport || "Unknown";
+  const date = asString(entry.date) || bucket.date;
+  const siteNames = orderedSiteNames(entry, siteOrder);
+
+  const deviating = new Map<string, number>();
+  const backendDeviations = Array.isArray(entry.sapanSiteler);
+  if (backendDeviations) {
+    for (const item of entry.sapanSiteler!) {
+      const minutes = asNumber(item?.farkDakika);
+      if (item && minutes !== null) deviating.set(asString(item.site), minutes);
+    }
+  }
+
+  const keys = siteNames.map((site) =>
+    kickOffKey(asString(dates[site]) || date, asString(times[site]) || null),
+  );
+  const fallback = backendDeviations ? null : deviationsFromReference(keys);
+
+  const sources: FixtureSource[] = siteNames.map((site, index) => {
+    const deviationMinutes = fallback ? fallback[index]! : (deviating.get(site) ?? 0);
+    return {
+      ...siteIdentity(site),
+      time: asString(times[site]) || null,
+      date: asString(dates[site]) || null,
+      deviationMinutes,
+      differs: deviationMinutes !== 0,
+      teams: asString(teams[site]) || null,
+      league: asString(leagues[site]) || null,
+    };
+  });
+
+  const timed = sources
+    .map((source, index) => ({ source, key: keys[index] ?? null }))
+    .filter((item): item is { source: FixtureSource; key: string } => item.key !== null)
+    .sort((a, b) => a.key.localeCompare(b.key));
+  const first = timed[0] ?? null;
+  const last = timed.at(-1) ?? null;
+
+  const backendSpread = asNumber(entry.maxFarkDakika);
+  const maxDiffMinutes =
+    backendSpread ??
+    (first && last && timed.length > 1 ? keyToMinutes(last.key) - keyToMinutes(first.key) : null);
+  const uniqueTimes = new Set(timed.map((item) => item.key)).size;
+
+  const missing = Array.isArray(entry.eksikSiteler)
+    ? entry.eksikSiteler.map((site) => siteIdentity(asString(site)).label)
+    : siteOrder.filter((site) => !siteNames.includes(site)).map((site) => siteIdentity(site).label);
+
+  return {
+    sport: normalizeSport(rawSport),
+    rawSport,
+    league: asString(entry.league) || bucket.league || "Unknown league",
+    date,
+    home: asString(entry.home) || "—",
+    away: asString(entry.away) || "—",
+    sources,
+    missing,
+    hasTimeDifference:
+      maxDiffMinutes !== null ? maxDiffMinutes > toleranceMinutes : uniqueTimes > 1,
+    maxDiffMinutes,
+    dateDiffers:
+      entry.tarihFarkli === true ||
+      new Set(sources.map((source) => source.date).filter(Boolean)).size > 1,
+    uniqueTimes,
+    earliest: first?.source ?? null,
+    latest: last?.source ?? null,
+    links: buildLinks(entry),
+    sortKey: first?.key ?? `${date} 99:99`,
+  };
+}
+
+/**
+ * Maps `farkliMaclar` onto one UI record per real-world fixture. The backend
+ * has already decided which site records are the same match — team names,
+ * variants (U19, B, Women) and home/away orientation are taken verbatim and
+ * never re-matched or normalized here.
+ */
+export function buildComparedFixtures(
   compared: ComparedMatchesResponse | null,
-  matchRecords: MatchRecord[],
-): ComparisonRecord[] {
+): ComparedFixture[] {
   const tree = compared?.farkliMaclar;
   if (!tree || typeof tree !== "object") return [];
 
-  const settings = compared?.ayarlar ?? {};
-  const teamThreshold =
-    typeof settings.takimEsigi === "number" && settings.takimEsigi > 0
-      ? Math.min(settings.takimEsigi, 100) / 100
-      : 0.78;
-  const dateTolerance =
-    typeof settings.tarihToleransGun === "number" && settings.tarihToleransGun >= 0
-      ? Math.min(Math.trunc(settings.tarihToleransGun), 7)
-      : 1;
+  const siteOrder = Array.isArray(compared?.siteler)
+    ? compared.siteler.filter((site): site is string => typeof site === "string")
+    : [];
+  const tolerance = asNumber(compared?.ayarlar?.toleransDakika) ?? 0;
 
-  const byDate = new Map<string, IndexedMatch[]>();
-  for (const record of matchRecords) {
-    if (!record.time) continue;
-    const bucket = byDate.get(record.date);
-    const indexed: IndexedMatch = {
-      ...record,
-      normalizedHome: normalizeText(record.home),
-      normalizedAway: normalizeText(record.away),
-    };
-    if (bucket) bucket.push(indexed);
-    else byDate.set(record.date, [indexed]);
-  }
+  const fixtures: ComparedFixture[] = [];
+  const seenIds = new Map<string, number>();
 
-  const records: ComparisonRecord[] = [];
-
-  for (const [rawSport, leagues] of Object.entries(tree)) {
+  for (const [sport, leagues] of Object.entries(tree)) {
     if (!leagues || typeof leagues !== "object") continue;
 
-    for (const [rawLeague, dates] of Object.entries(leagues)) {
+    for (const [league, dates] of Object.entries(leagues)) {
       if (!dates || typeof dates !== "object") continue;
 
-      for (const [rawDate, entries] of Object.entries(dates)) {
+      for (const [date, entries] of Object.entries(dates)) {
         if (!Array.isArray(entries)) continue;
 
-        for (const [index, entry] of entries.entries()) {
+        for (const entry of entries) {
           if (!entry || typeof entry !== "object") continue;
 
-          const sportLabel = asString(entry.sport) || rawSport;
-          const sport = normalizeSport(sportLabel);
-          const league = asString(entry.league) || rawLeague || "Unknown league";
-          const date = asString(entry.date) || rawDate;
-          const home = asString(entry.home) || "—";
-          const away = asString(entry.away) || "—";
-
-          const candidateDates = new Set<string>([date]);
-          for (let offset = 1; offset <= dateTolerance; offset += 1) {
-            const earlier = shiftDate(date, -offset);
-            const later = shiftDate(date, offset);
-            if (earlier) candidateDates.add(earlier);
-            if (later) candidateDates.add(later);
-          }
-
-          const normalizedHome = normalizeText(home);
-          const normalizedAway = normalizeText(away);
-          const bestBySite = new Map<Site, { score: number; time: string }>();
-
-          for (const candidateDate of candidateDates) {
-            for (const candidate of byDate.get(candidateDate) ?? []) {
-              if (sport && candidate.sport && candidate.sport !== sport) continue;
-
-              const homeScore = similarity(normalizedHome, candidate.normalizedHome);
-              const awayScore = similarity(normalizedAway, candidate.normalizedAway);
-              const score = (homeScore + awayScore) / 2;
-              if (score < teamThreshold) continue;
-              if (Math.min(homeScore, awayScore) < teamThreshold * 0.6) continue;
-
-              const current = bestBySite.get(candidate.site);
-              if (!current || score > current.score) {
-                bestBySite.set(candidate.site, { score, time: candidate.time });
-              }
-            }
-          }
-
-          const siteTimes = markDifferences(
-            SITES.filter((site) => bestBySite.has(site)).map((site) => ({
-              site,
-              time: bestBySite.get(site)!.time,
-            })),
-          );
-
-          records.push({
-            id: `${rawSport}:${rawLeague}:${rawDate}:${index}`,
-            sport,
-            rawSport: sportLabel || "Unknown",
-            league,
-            date,
-            home,
-            away,
-            referenceTime: asString(entry.time),
-            siteTimes,
-            spreadMinutes: widestGap(siteTimes),
-            extras: extractExtras(entry),
-          });
+          const fixture = buildFixture(entry, { sport, league, date }, siteOrder, tolerance);
+          // Content-based, so a row keeps its expanded state across refreshes.
+          const base = [fixture.rawSport, fixture.league, fixture.date, fixture.home, fixture.away].join("|");
+          const seen = seenIds.get(base) ?? 0;
+          seenIds.set(base, seen + 1);
+          fixtures.push({ id: seen === 0 ? base : `${base}#${seen}`, ...fixture });
         }
       }
     }
   }
 
-  return records;
+  return fixtures;
 }
 
 export function uniqueSorted(values: string[]): string[] {
