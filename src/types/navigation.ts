@@ -1,2 +1,2 @@
-export const VIEWS = ["dashboard", "matches", "compared", "settings"] as const;
+export const VIEWS = ["dashboard", "matches", "compared", "live", "settings"] as const;
 export type ViewKey = (typeof VIEWS)[number];

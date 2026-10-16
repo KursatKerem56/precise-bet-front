@@ -9,6 +9,7 @@ import { FilterBar, FilterSelect } from "../components/FilterBar";
 import { SkeletonTableRows } from "../components/Skeleton";
 import { EmptyState } from "../components/EmptyState";
 import { ApiErrorState } from "../components/ApiErrorState";
+import { LiveSourceWarning } from "../components/LiveSourceWarning";
 import { sportLabel } from "../components/Tags";
 import { useApiResource } from "../lib/useApiResource";
 import { fetchComparedMatches } from "../lib/dataSource";
@@ -158,7 +159,6 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
   const relative = formatRelative(generatedAt);
   const live = summary.canli;
   const liveStale = isLiveStale(generatedAt);
-  const unusedLive = liveSources.filter((source) => source.state !== "ok");
   const conflictCount = records.filter((record) => record.kickOffConflict).length;
   const busy = compared.loading;
   const filtersActive =
@@ -217,20 +217,7 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
             </p>
           ) : null}
 
-          {unusedLive.length > 0 && !busy ? (
-            <p className="run-warning" role="status">
-              The last run did not use live data from{" "}
-              {unusedLive
-                .map((source) =>
-                  source.state === "stale"
-                    ? `${source.label} (${source.ageMinutes !== null ? `${formatNumber(Math.round(source.ageMinutes))} min old` : "out of date"})`
-                    : `${source.label} (could not be read)`,
-                )
-                .join(", ")}
-              . Those sites are compared on scheduled times only, and a fixture missing from a live
-              feed is not treated as finished.
-            </p>
-          ) : null}
+          {!busy ? <LiveSourceWarning sources={liveSources} /> : null}
 
           <Ledger>
             <MetricCard

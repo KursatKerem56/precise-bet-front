@@ -4,6 +4,7 @@ import { ToastProvider } from "./components/Toast";
 import { DashboardView } from "./views/DashboardView";
 import { MatchesView } from "./views/MatchesView";
 import { ComparedMatchesView } from "./views/ComparedMatchesView";
+import { LiveMatchesView } from "./views/LiveMatchesView";
 import { SiteSettingsView } from "./views/SiteSettingsView";
 import { getFetcherStatus, hasAuthToken, useSampleData } from "./lib/api";
 import type { FetcherStatus } from "./lib/api";
@@ -14,6 +15,7 @@ const NAV_ITEMS: Array<{ key: ViewKey; label: string }> = [
   { key: "dashboard", label: "Overview" },
   { key: "matches", label: "Matches" },
   { key: "compared", label: "Conflicts" },
+  { key: "live", label: "Live" },
   { key: "settings", label: "Site links" },
 ];
 
@@ -149,6 +151,7 @@ function App() {
           {view === "compared" ? (
             <ComparedMatchesView autoRefreshSignal={autoRefreshSignal} />
           ) : null}
+          {view === "live" ? <LiveMatchesView autoRefreshSignal={autoRefreshSignal} /> : null}
           {view === "settings" ? (
             <SiteSettingsView autoRefreshSignal={autoRefreshSignal} />
           ) : null}
