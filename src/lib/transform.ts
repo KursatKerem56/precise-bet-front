@@ -7,10 +7,16 @@ import type {
 } from "../types/matches";
 import type {
   ApiDifferentMatch,
+  ApiLiveInfo,
+  ApiSiteLive,
   ComparedFixture,
   ComparedMatchesResponse,
+  DifferentMatchesTree,
   FixtureLink,
+  FixtureLive,
   FixtureSource,
+  LiveStatus,
+  SourceLive,
 } from "../types/comparison";
 import { formatTime, timeToMinutes } from "./format";
 
@@ -201,7 +207,66 @@ function buildLinks(entry: ApiDifferentMatch): FixtureLink[] {
       method: asString(edge.kimlik) || null,
       reversed: edge.ters === true,
       confidence: asNumber(edge.guven),
+      liveEvidence: asString(edge.canliKanit) || null,
     }));
+}
+
+const LIVE_STATUSES: readonly LiveStatus[] = ["live", "interrupted", "finished"];
+
+/** Only the backend's normalized statuses count; anything else is ignored. */
+function asLiveStatus(value: unknown): LiveStatus | null {
+  const status = asString(value).toLowerCase();
+  return (LIVE_STATUSES as readonly string[]).includes(status) ? (status as LiveStatus) : null;
+}
+
+function buildSourceLive(raw: ApiSiteLive | undefined): SourceLive | null {
+  const status = asLiveStatus(raw?.durum);
+  if (!raw || !status) return null;
+  return {
+    status,
+    score: asString(raw.skor) || null,
+    period: asString(raw.periyot) || null,
+    minute: asString(raw.dakika) || null,
+    reportedStart: asString(raw.bildirilenBaslama) || null,
+    scheduleFromEarlierList: raw.saatKaynagi === "onceki-liste",
+  };
+}
+
+/**
+ * Live state as the backend decided it from explicit site statuses. A site
+ * reporting the fixture finished outranks one still showing it live, and a
+ * kick-off time in the past never makes a fixture live here.
+ */
+function buildFixtureLive(
+  canli: ApiLiveInfo | undefined,
+  perSite: Map<string, SourceLive>,
+): FixtureLive | null {
+  const statuses = [...perSite.values()].map((live) => live.status);
+  const status =
+    asLiveStatus(canli?.durum) ??
+    (statuses.includes("finished")
+      ? "finished"
+      : statuses.includes("live")
+        ? "live"
+        : statuses.includes("interrupted")
+          ? "interrupted"
+          : null);
+  if (!status) return null;
+
+  const underway = status !== "finished";
+  return {
+    status,
+    underway,
+    notStartedOn: underway
+      ? notStartedSites(canli).map((site) => siteIdentity(site).label)
+      : [],
+  };
+}
+
+function notStartedSites(canli: ApiLiveInfo | undefined): string[] {
+  return Array.isArray(canli?.baslamamisGosteren)
+    ? canli.baslamamisGosteren.map((site) => asString(site)).filter(Boolean)
+    : [];
 }
 
 function buildFixture(
@@ -209,6 +274,7 @@ function buildFixture(
   bucket: { sport: string; league: string; date: string },
   siteOrder: string[],
   toleranceMinutes: number,
+  kickOffConflict: boolean,
 ): Omit<ComparedFixture, "id"> {
   const times = asRecord(entry.saatler);
   const dates = asRecord(entry.tarihler);
@@ -228,6 +294,14 @@ function buildFixture(
     }
   }
 
+  const liveBySite = new Map<string, SourceLive>();
+  for (const [site, raw] of Object.entries(asRecord(entry.canli?.siteler))) {
+    const live = buildSourceLive(raw as ApiSiteLive);
+    if (live) liveBySite.set(site, live);
+  }
+  const live = buildFixtureLive(entry.canli, liveBySite);
+  const notStarted = new Set(live?.underway ? notStartedSites(entry.canli) : []);
+
   const keys = siteNames.map((site) =>
     kickOffKey(asString(dates[site]) || date, asString(times[site]) || null),
   );
@@ -243,6 +317,8 @@ function buildFixture(
       differs: deviationMinutes !== 0,
       teams: asString(teams[site]) || null,
       league: asString(leagues[site]) || null,
+      live: liveBySite.get(site) ?? null,
+      showsNotStarted: notStarted.has(site),
     };
   });
 
@@ -283,28 +359,18 @@ function buildFixture(
     latest: last?.source ?? null,
     links: buildLinks(entry),
     sortKey: first?.key ?? `${date} 99:99`,
+    live,
+    kickOffConflict,
   };
 }
 
-/**
- * Maps `farkliMaclar` onto one UI record per real-world fixture. The backend
- * has already decided which site records are the same match — team names,
- * variants (U19, B, Women) and home/away orientation are taken verbatim and
- * never re-matched or normalized here.
- */
-export function buildComparedFixtures(
-  compared: ComparedMatchesResponse | null,
-): ComparedFixture[] {
-  const tree = compared?.farkliMaclar;
-  if (!tree || typeof tree !== "object") return [];
+type Bucket = { sport: string; league: string; date: string };
 
-  const siteOrder = Array.isArray(compared?.siteler)
-    ? compared.siteler.filter((site): site is string => typeof site === "string")
-    : [];
-  const tolerance = asNumber(compared?.ayarlar?.toleransDakika) ?? 0;
-
-  const fixtures: ComparedFixture[] = [];
-  const seenIds = new Map<string, number>();
+function forEachEntry(
+  tree: DifferentMatchesTree | undefined,
+  visit: (entry: ApiDifferentMatch, bucket: Bucket) => void,
+): void {
+  if (!tree || typeof tree !== "object") return;
 
   for (const [sport, leagues] of Object.entries(tree)) {
     if (!leagues || typeof leagues !== "object") continue;
@@ -316,20 +382,114 @@ export function buildComparedFixtures(
         if (!Array.isArray(entries)) continue;
 
         for (const entry of entries) {
-          if (!entry || typeof entry !== "object") continue;
-
-          const fixture = buildFixture(entry, { sport, league, date }, siteOrder, tolerance);
-          // Content-based, so a row keeps its expanded state across refreshes.
-          const base = [fixture.rawSport, fixture.league, fixture.date, fixture.home, fixture.away].join("|");
-          const seen = seenIds.get(base) ?? 0;
-          seenIds.set(base, seen + 1);
-          fixtures.push({ id: seen === 0 ? base : `${base}#${seen}`, ...fixture });
+          if (entry && typeof entry === "object") visit(entry, { sport, league, date });
         }
       }
     }
   }
+}
+
+function sortedRecord(value: unknown): Array<[string, unknown]> {
+  return Object.entries(asRecord(value)).sort(([a], [b]) => a.localeCompare(b));
+}
+
+/**
+ * Identity of one backend row. The backend writes the same row into both
+ * trees when a fixture is a kick-off conflict and also live-but-upcoming
+ * somewhere, so only a row matching on every per-site field is a repeat.
+ * Equal team names alone never are: the same sides can meet in another
+ * sport, competition or on another day.
+ */
+function rowSignature(entry: ApiDifferentMatch, bucket: Bucket): string {
+  return JSON.stringify([
+    asString(entry.sport) || bucket.sport,
+    asString(entry.league) || bucket.league,
+    asString(entry.date) || bucket.date,
+    asString(entry.home),
+    asString(entry.away),
+    sortedRecord(entry.saatler),
+    sortedRecord(entry.tarihler),
+    sortedRecord(entry.takimlar),
+    sortedRecord(entry.ligler),
+  ]);
+}
+
+/**
+ * Maps `farkliMaclar` onto one UI record per real-world fixture, then adds
+ * live fixtures from `canliAmaBaslamamisGorunen` that are not already there.
+ * The backend has already decided which site records are the same match --
+ * live records go through the same name matcher as scheduled ones -- so team
+ * names, variants (U19, B, Women) and home/away orientation are taken
+ * verbatim and never re-matched or normalized here.
+ */
+export function buildComparedFixtures(
+  compared: ComparedMatchesResponse | null,
+): ComparedFixture[] {
+  if (!compared || typeof compared !== "object") return [];
+
+  const siteOrder = Array.isArray(compared.siteler)
+    ? compared.siteler.filter((site): site is string => typeof site === "string")
+    : [];
+  const tolerance = asNumber(compared.ayarlar?.toleransDakika) ?? 0;
+
+  const fixtures: ComparedFixture[] = [];
+  const seenIds = new Map<string, number>();
+  const listedRows = new Set<string>();
+
+  const add = (entry: ApiDifferentMatch, bucket: Bucket, kickOffConflict: boolean) => {
+    const fixture = buildFixture(entry, bucket, siteOrder, tolerance, kickOffConflict);
+    // Content-based, so a row keeps its expanded state across refreshes.
+    const base = [fixture.rawSport, fixture.league, fixture.date, fixture.home, fixture.away].join("|");
+    const seen = seenIds.get(base) ?? 0;
+    seenIds.set(base, seen + 1);
+    fixtures.push({ id: seen === 0 ? base : `${base}#${seen}`, ...fixture });
+  };
+
+  forEachEntry(compared.farkliMaclar, (entry, bucket) => {
+    listedRows.add(rowSignature(entry, bucket));
+    add(entry, bucket, true);
+  });
+
+  // A conflict row repeated here already carries the same live state.
+  forEachEntry(compared.canliAmaBaslamamisGorunen, (entry, bucket) => {
+    const signature = rowSignature(entry, bucket);
+    if (listedRows.has(signature)) return;
+    listedRows.add(signature);
+    add(entry, bucket, false);
+  });
 
   return fixtures;
+}
+
+/**
+ * Mirrors the backend's live file limit (MATCH_LIVE_MAX_AGE_MINUTES default).
+ * A run older than this says what was live then, not what is live now.
+ */
+export const LIVE_STALE_MINUTES = 15;
+
+export function isLiveStale(generatedAt: string | null | undefined, now = Date.now()): boolean {
+  const at = generatedAt ? Date.parse(generatedAt) : Number.NaN;
+  return !Number.isFinite(at) || now - at > LIVE_STALE_MINUTES * 60000;
+}
+
+export interface LiveSourceState {
+  label: string;
+  state: "ok" | "stale" | "error";
+  ageMinutes: number | null;
+  error: string | null;
+}
+
+/** How the last run used each site's live feed; empty when it read none. */
+export function buildLiveSources(compared: ComparedMatchesResponse | null): LiveSourceState[] {
+  return Object.entries(asRecord(compared?.ozet?.canli?.kaynaklar)).map(([site, raw]) => {
+    const info = asRecord(raw);
+    return {
+      label: siteIdentity(site).label,
+      state: info.durum === "ok" ? "ok" : info.durum === "eski" ? "stale" : "error",
+      ageMinutes: asNumber(info.yasDakika),
+      error: asString(info.hata) || null,
+    };
+  });
 }
 
 export function uniqueSorted(values: string[]): string[] {

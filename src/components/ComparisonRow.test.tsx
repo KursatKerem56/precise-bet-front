@@ -13,6 +13,8 @@ function source(label: string, time: string, deviationMinutes = 0): FixtureSourc
     differs: deviationMinutes !== 0,
     teams: null,
     league: null,
+    live: null,
+    showsNotStarted: false,
   };
 }
 
@@ -36,15 +38,17 @@ function fixture(overrides: Partial<ComparedFixture>): ComparedFixture {
     latest: sources.at(-1) ?? null,
     links: [],
     sortKey: "2026-09-19 18:00",
+    live: null,
+    kickOffConflict: true,
     ...overrides,
   };
 }
 
-function render(value: ComparedFixture): string {
+function render(value: ComparedFixture, liveStale = false): string {
   return renderToStaticMarkup(
     <table>
       <tbody>
-        <ComparisonRow fixture={value} />
+        <ComparisonRow fixture={value} liveStale={liveStale} />
       </tbody>
     </table>,
   );
@@ -144,5 +148,89 @@ describe("ComparisonRow", () => {
 
     expect(html).toContain("No per-site times in this entry");
     expect(html).not.toContain("Details");
+  });
+});
+
+describe("ComparisonRow with live data", () => {
+  const live = {
+    status: "live" as const,
+    score: "1:0",
+    period: "2nd half",
+    minute: "63",
+    reportedStart: "19:34",
+    scheduleFromEarlierList: false,
+  };
+
+  it("shows no live markup for a fixture without a live status", () => {
+    const html = render(fixture({ sources: [source("Virus Bet", "18:00"), source("Mavi Bet", "19:00", 60)] }));
+
+    expect(html).not.toContain("badge--live");
+    expect(html).not.toContain("times__status");
+    expect(html).not.toContain("Listed upcoming");
+  });
+
+  it("marks a live fixture and keeps each site's scheduled kick-off", () => {
+    const html = render(
+      fixture({
+        sources: [
+          { ...source("Virus Bet", "19:30"), live },
+          { ...source("Mavi Bet", "21:00", 90), showsNotStarted: true },
+        ],
+        maxDiffMinutes: 90,
+        live: { status: "live", underway: true, notStartedOn: ["Mavi Bet"] },
+      }),
+    );
+
+    expect(html).toContain("badge--live");
+    expect(html).toContain("Live 1:0 2nd half 63&#x27;");
+    expect(html).toContain('<span class="times__clock">19:30</span>');
+    expect(html).toContain('<span class="times__clock">21:00</span>');
+    // The reported start belongs in the details, never in place of a kick-off.
+    expect(html).not.toContain('<span class="times__clock">19:34</span>');
+    expect(html).toContain("+1 hr 30 min");
+    expect(html).toContain("Live, but upcoming on Mavi Bet");
+  });
+
+  it("explains a live fixture listed as upcoming when no times can be compared", () => {
+    const html = render(
+      fixture({
+        sources: [{ ...source("Betist", ""), time: null, live }, { ...source("Virus Bet", "21:00"), showsNotStarted: true }],
+        hasTimeDifference: false,
+        maxDiffMinutes: null,
+        uniqueTimes: 1,
+        kickOffConflict: false,
+        live: { status: "live", underway: true, notStartedOn: ["Virus Bet"] },
+      }),
+    );
+
+    expect(html).toContain("Listed upcoming");
+    expect(html).toContain("on Virus Bet");
+    expect(html).not.toContain("Same time");
+  });
+
+  it("never calls a finished fixture live", () => {
+    const html = render(
+      fixture({
+        sources: [{ ...source("Virus Bet", "19:30"), live: { ...live, status: "finished", score: "2:1" } }],
+        live: { status: "finished", underway: false, notStartedOn: [] },
+      }),
+    );
+
+    expect(html).toContain("Finished");
+    expect(html).not.toContain("badge--live");
+    expect(html).not.toContain(">Live<");
+  });
+
+  it("says a live status is from the last run when that run is old", () => {
+    const html = render(
+      fixture({
+        sources: [{ ...source("Virus Bet", "19:30"), live }],
+        live: { status: "live", underway: true, notStartedOn: [] },
+      }),
+      true,
+    );
+
+    expect(html).toContain("Live at last run");
+    expect(html).not.toContain("badge__pulse");
   });
 });

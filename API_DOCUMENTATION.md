@@ -281,6 +281,60 @@ Entry fields:
 | `eslesme` | How pairs of sites were matched: identity stage (`kimlik`), whether home and away were swapped (`ters`), and confidence in [0, 1] (`guven`). |
 | `okunamayan` | Source files the run could not read, with the reason. |
 
+#### Live matches
+
+When the fetcher has written a fresh `<site>-live-matches.json` beside a site's match file, the run merges that site's live records into its scheduled list before matching. They go through the same name matcher as scheduled records. A record in both feeds (same event id) stays one record and keeps its scheduled time. If no live file is present, or every one is stale, none of the fields below appear and the response is unchanged.
+
+`GET /panel/matches` is not affected: live records are never written to the stored match documents.
+
+```json
+{
+  "ozet": {
+    "canli": {
+      "kaynaklar": {
+        "virus_bet": { "durum": "ok", "fetchedAt": "2026-10-16T18:31:02.000Z", "yasDakika": 0.8, "kayit": 38, "birlesen": 31, "eklenen": 7, "saatiGeriYuklenen": 2 },
+        "mavi_bet": { "durum": "eski", "fetchedAt": "2026-10-16T18:08:00.000Z", "yasDakika": 23.4 }
+      },
+      "canliMacGrubu": 2,
+      "cokSitedeCanli": 2,
+      "bitmis": 1,
+      "saatiFarkliCanli": 1,
+      "baslamamisGosterilen": 1,
+      "canliKanitliEslesme": 0
+    }
+  },
+  "farkliMaclar": {
+    "FUTBOL": { "Süper Lig": { "2026-10-16": [
+      {
+        "home": "Galatasaray",
+        "away": "Fenerbahce",
+        "saatler": { "virus_bet": "19:30", "mavi_bet": "21:00" },
+        "eslesme": [{ "siteA": "virus_bet", "siteB": "mavi_bet", "kimlik": "alias", "ters": false, "guven": 1 }],
+        "canli": {
+          "durum": "live",
+          "siteler": {
+            "virus_bet": { "durum": "live", "skor": "1:0", "periyot": "2nd half", "dakika": "63", "bildirilenBaslama": "19:34" }
+          },
+          "baslamamisGosteren": ["mavi_bet"]
+        }
+      }
+    ] } }
+  },
+  "canliAmaBaslamamisGorunen": { "FUTBOL": { "Süper Lig": { "2026-10-16": ["…same row shape…"] } } }
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `ozet.canli.kaynaklar` | How each site's live file was used: `ok` (used), `eski` (older than the backend limit, 15 minutes by default, so ignored) or `hata` (unreadable). `birlesen` counts live records merged into the same event, `eklenen` live records added because the site had already dropped the fixture from its list, and `saatiGeriYuklenen` added records whose scheduled time came from the site's earlier list. |
+| `canli.durum` | `live`, `interrupted` or `finished`, taken only from the sites' explicit statuses. `finished` outranks `live`, so a site that is slow to update does not keep a fixture live. A fixture is never live just because its kick-off has passed, and a fixture missing from a live feed is not treated as finished. |
+| `canli.siteler` | Per site: status, score (`skor`), period (`periyot`), minute (`dakika`) and the start the live feed reports (`bildirilenBaslama`). That reported start is kept apart from the scheduled time in `saatler`. `saatKaynagi: "onceki-liste"` means the scheduled time came from the site's previous list. |
+| `canli.baslamamisGosteren` | Sites that still list the fixture as upcoming, with a scheduled time well after it was first seen live. This is the clearest sign of a wrong scheduled time. |
+| `eslesme[].canliKanit` | Live evidence that let a pair past a time guard: `simultaneous` (both live at the same time) or `live-vs-upcoming`. |
+| `canliAmaBaslamamisGorunen` | Live fixtures that another site still lists as upcoming. The row shape matches `farkliMaclar` and may repeat rows from it. Rows whose times cannot be compared, such as a live record with no scheduled time, appear only here. |
+
+The frontend shows each row of `farkliMaclar` and adds rows from `canliAmaBaslamamisGorunen` only when they are not an exact repeat of one already shown. It never re-matches teams. A run older than 15 minutes has its live statuses labelled "at last run".
+
 ## Common Errors
 
 ### Invalid authentication: HTTP 401

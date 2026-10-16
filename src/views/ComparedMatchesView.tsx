@@ -14,6 +14,8 @@ import { useApiResource } from "../lib/useApiResource";
 import { fetchComparedMatches } from "../lib/dataSource";
 import {
   buildComparedFixtures,
+  buildLiveSources,
+  isLiveStale,
   normalizeSite,
   normalizeSport,
   uniqueSorted,
@@ -27,12 +29,21 @@ const ALL = "ALL";
 const KINDS = {
   time: "Same day, different time",
   day: "Different day",
+  upcoming: "Live, listed upcoming elsewhere",
+} as const;
+
+/** Only explicit site statuses; a past kick-off alone never counts as live. */
+const STATUSES = {
+  underway: "Live now",
+  finished: "Finished",
+  none: "No live status",
 } as const;
 
 const SORTS = {
   kickoff: "Kick-off",
   spread: "Largest difference",
   sources: "Most sites",
+  live: "Live first",
 } as const;
 type SortKey = keyof typeof SORTS;
 
@@ -44,8 +55,29 @@ function byKickOff(a: ComparedFixture, b: ComparedFixture): number {
   );
 }
 
+function liveRank(record: ComparedFixture): number {
+  return record.live ? (record.live.underway ? 0 : 1) : 2;
+}
+
+function listedUpcoming(record: ComparedFixture): boolean {
+  return record.live?.underway === true && record.live.notStartedOn.length > 0;
+}
+
+function matchesKind(record: ComparedFixture, kind: string): boolean {
+  if (kind === "upcoming") return listedUpcoming(record);
+  if (!record.kickOffConflict) return false;
+  return kind === "day" ? record.dateDiffers : !record.dateDiffers;
+}
+
+function matchesStatus(record: ComparedFixture, status: string): boolean {
+  if (status === "underway") return record.live?.underway === true;
+  if (status === "finished") return record.live?.underway === false;
+  return record.live === null;
+}
+
 const COMPARATORS: Record<SortKey, (a: ComparedFixture, b: ComparedFixture) => number> = {
   kickoff: byKickOff,
+  live: (a, b) => liveRank(a) - liveRank(b) || byKickOff(a, b),
   spread: (a, b) => (b.maxDiffMinutes ?? -1) - (a.maxDiffMinutes ?? -1) || byKickOff(a, b),
   sources: (a, b) => b.sources.length - a.sources.length || byKickOff(a, b),
 };
@@ -59,9 +91,14 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
   const [site, setSite] = useState(ALL);
   const [siteCount, setSiteCount] = useState(ALL);
   const [kind, setKind] = useState(ALL);
+  const [status, setStatus] = useState(ALL);
   const [sort, setSort] = useState<SortKey>("kickoff");
 
   const records = useMemo(() => buildComparedFixtures(compared.data), [compared.data]);
+  const liveSources = useMemo(() => buildLiveSources(compared.data), [compared.data]);
+  const hasLive = liveSources.length > 0 || records.some((record) => record.live !== null);
+  // The control is hidden without live data, so its value must not linger.
+  const statusFilter = hasLive ? status : ALL;
 
   const sportOptions = useMemo(
     () => uniqueSorted(records.map((record) => record.rawSport)),
@@ -101,12 +138,10 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
           (record) => site === ALL || record.sources.some((source) => source.site === site),
         )
         .filter((record) => siteCount === ALL || record.sources.length === Number(siteCount))
-        .filter(
-          (record) =>
-            kind === ALL || (kind === "day" ? record.dateDiffers : !record.dateDiffers),
-        )
+        .filter((record) => kind === ALL || matchesKind(record, kind))
+        .filter((record) => statusFilter === ALL || matchesStatus(record, statusFilter))
         .sort(COMPARATORS[sort]),
-    [records, sport, league, date, site, siteCount, kind, sort],
+    [records, sport, league, date, site, siteCount, kind, statusFilter, sort],
   );
 
   const summary = compared.data?.ozet ?? {};
@@ -121,6 +156,10 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
     .filter(Boolean);
   const generatedAt = compared.data?.olusturulma;
   const relative = formatRelative(generatedAt);
+  const live = summary.canli;
+  const liveStale = isLiveStale(generatedAt);
+  const unusedLive = liveSources.filter((source) => source.state !== "ok");
+  const conflictCount = records.filter((record) => record.kickOffConflict).length;
   const busy = compared.loading;
   const filtersActive =
     sport !== ALL ||
@@ -128,7 +167,8 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
     date !== ALL ||
     site !== ALL ||
     siteCount !== ALL ||
-    kind !== ALL;
+    kind !== ALL ||
+    statusFilter !== ALL;
   const nothingComparable = (summary.karsilastirilabilir ?? 0) === 0;
 
   const resetFilters = () => {
@@ -138,6 +178,7 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
     setSite(ALL);
     setSiteCount(ALL);
     setKind(ALL);
+    setStatus(ALL);
   };
 
   useEffect(() => {
@@ -148,7 +189,7 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
     <>
       <PageHeader
         title="Kick-off conflicts"
-        description="Fixtures listed on two or more sites where the sites publish different start times."
+        description="Fixtures listed on two or more sites where the sites publish different start times, or where one site shows the fixture live while another still lists it as upcoming."
         meta={
           generatedAt && !compared.loading ? (
             <>
@@ -176,6 +217,21 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
             </p>
           ) : null}
 
+          {unusedLive.length > 0 && !busy ? (
+            <p className="run-warning" role="status">
+              The last run did not use live data from{" "}
+              {unusedLive
+                .map((source) =>
+                  source.state === "stale"
+                    ? `${source.label} (${source.ageMinutes !== null ? `${formatNumber(Math.round(source.ageMinutes))} min old` : "out of date"})`
+                    : `${source.label} (could not be read)`,
+                )
+                .join(", ")}
+              . Those sites are compared on scheduled times only, and a fixture missing from a live
+              feed is not treated as finished.
+            </p>
+          ) : null}
+
           <Ledger>
             <MetricCard
               value={formatNumber(summary.toplamMacGrubu)}
@@ -196,7 +252,7 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
             <MetricCard
               value={formatNumber(summary.saatiFarkli)}
               label="Different times"
-              hint={`${formatNumber(records.length)} listed below`}
+              hint={`${formatNumber(conflictCount)} listed below`}
               flag
               loading={compared.loading}
             />
@@ -207,6 +263,24 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
               loading={compared.loading}
             />
           </Ledger>
+
+          {live && !busy ? (
+            <p className="live-strip" role="status">
+              <span>
+                <b>{formatNumber(live.canliMacGrubu)}</b>{" "}
+                {liveStale ? "live at the last run" : "live now"}
+              </span>
+              <span>
+                <b>{formatNumber(live.baslamamisGosterilen)}</b> still listed as upcoming on another site
+              </span>
+              <span>
+                <b>{formatNumber(live.saatiFarkliCanli)}</b> live with different kick-offs
+              </span>
+              <span>
+                <b>{formatNumber(live.bitmis)}</b> finished
+              </span>
+            </p>
+          ) : null}
 
           <FilterBar
             onReset={resetFilters}
@@ -291,6 +365,18 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
                 ...Object.entries(KINDS).map(([value, label]) => ({ value, label })),
               ]}
             />
+            {hasLive ? (
+              <FilterSelect
+                id="compared-status"
+                label="Status"
+                value={statusFilter}
+                onChange={setStatus}
+                options={[
+                  { value: ALL, label: "Any status" },
+                  ...Object.entries(STATUSES).map(([value, label]) => ({ value, label })),
+                ]}
+              />
+            ) : null}
             <FilterSelect
               id="compared-sort"
               label="Sort by"
@@ -302,7 +388,7 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
 
           <Panel
             title="Flagged fixtures"
-            description="One row per real-world fixture, as matched by the comparison run. Each site's kick-off is shown as that site publishes it; red times disagree with the majority. Fixtures where every site agrees are only counted above."
+            description="One row per real-world fixture, as matched by the comparison run. Each site's kick-off is shown as that site publishes it; red times disagree with the majority. Live status comes only from the sites' own live feeds. Fixtures where every site agrees are only counted above."
             flush
           >
             <DataTable
@@ -312,7 +398,9 @@ export function ComparedMatchesView({ autoRefreshSignal }: { autoRefreshSignal: 
               {busy ? (
                 <SkeletonTableRows rows={8} columns={COMPARISON_COLUMNS.length} />
               ) : filtered.length > 0 ? (
-                filtered.map((record) => <ComparisonRow key={record.id} fixture={record} />)
+                filtered.map((record) => (
+                  <ComparisonRow key={record.id} fixture={record} liveStale={liveStale} />
+                ))
               ) : (
                 <tr>
                   <td colSpan={COMPARISON_COLUMNS.length}>

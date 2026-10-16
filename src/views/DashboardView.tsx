@@ -16,6 +16,7 @@ import {
   buildComparedFixtures,
   buildSiteCoverage,
   flattenMatches,
+  isLiveStale,
   normalizeSite,
 } from "../lib/transform";
 import { formatNumber, formatRelative, formatTimestamp } from "../lib/format";
@@ -156,7 +157,13 @@ export function DashboardView({
             {compared.loading ? (
               <SkeletonTableRows rows={4} columns={COMPARISON_COLUMNS.length} />
             ) : preview.length > 0 ? (
-              preview.map((record) => <ComparisonRow key={record.id} fixture={record} />)
+              preview.map((record) => (
+                <ComparisonRow
+                  key={record.id}
+                  fixture={record}
+                  liveStale={isLiveStale(generatedAt)}
+                />
+              ))
             ) : (
               <tr>
                 <td colSpan={COMPARISON_COLUMNS.length}>

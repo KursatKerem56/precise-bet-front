@@ -1,6 +1,6 @@
 import type { SiteLink } from "../types/api";
 import type { MatchesResponse } from "../types/matches";
-import type { ComparedMatchesResponse } from "../types/comparison";
+import type { ApiDifferentMatch, ComparedMatchesResponse } from "../types/comparison";
 
 /**
  * Development fixtures used only when VITE_USE_SAMPLE_DATA is "true".
@@ -215,6 +215,46 @@ export const sampleMatches: MatchesResponse = {
   ],
 };
 
+/**
+ * Live on two sites while Mavi Bet still lists 20:30. The backend writes this
+ * row under both `farkliMaclar` and `canliAmaBaslamamisGorunen`.
+ */
+const arsenalChelsea: ApiDifferentMatch = {
+  sport: "FUTBOL",
+  league: "Premier League",
+  date: "2026-09-18",
+  home: "Arsenal",
+  away: "Chelsea",
+  saatler: { virus_bet: "20:00", mavi_bet: "20:30", zlot: "20:00" },
+  tarihler: { virus_bet: "2026-09-18", mavi_bet: "2026-09-18", zlot: "2026-09-18" },
+  tarihFarkli: false,
+  maxFarkDakika: 30,
+  sapanSiteler: [{ site: "mavi_bet", farkDakika: 30 }],
+  eksikSiteler: ["betist"],
+  ligler: {
+    virus_bet: "England - Premier League",
+    mavi_bet: "England - Premier League",
+    zlot: "England - Premier League",
+  },
+  takimlar: {
+    virus_bet: "Arsenal - Chelsea",
+    mavi_bet: "Arsenal FC - Chelsea FC",
+    zlot: "Arsenal - Chelsea",
+  },
+  eslesme: [
+    { siteA: "virus_bet", siteB: "zlot", kimlik: "exact", ters: false, guven: 1 },
+    { siteA: "virus_bet", siteB: "mavi_bet", kimlik: "core", ters: false, guven: 0.96 },
+  ],
+  canli: {
+    durum: "live",
+    siteler: {
+      virus_bet: { durum: "live", skor: "1:0", periyot: "1st half", dakika: "24", bildirilenBaslama: "20:02" },
+      zlot: { durum: "live", skor: "1:0", dakika: "23" },
+    },
+    baslamamisGosteren: ["mavi_bet"],
+  },
+};
+
 export const sampleComparedMatches: ComparedMatchesResponse = {
   olusturulma: "2026-09-16T02:12:22.017Z",
   siteler: ["virus_bet", "mavi_bet", "betist", "zlot"],
@@ -233,38 +273,26 @@ export const sampleComparedMatches: ComparedMatchesResponse = {
     saatiFarkli: 254,
     saatiAyni: 3432,
     kapsam: { "1_sitede": 2090, "2_sitede": 1281, "3_sitede": 1038, "4_sitede": 1367 },
+    canli: {
+      kaynaklar: {
+        virus_bet: { durum: "ok", fetchedAt: "2026-09-16T02:11:40.000Z", yasDakika: 0.7, kayit: 38, birlesen: 31, eklenen: 7, saatiGeriYuklenen: 2 },
+        mavi_bet: { durum: "eski", fetchedAt: "2026-09-16T01:49:00.000Z", yasDakika: 23.4 },
+        betist: { durum: "ok", fetchedAt: "2026-09-16T02:10:55.000Z", yasDakika: 1.5, kayit: 22, birlesen: 0, eklenen: 22, saatiGeriYuklenen: 0 },
+        zlot: { durum: "ok", fetchedAt: "2026-09-16T02:11:05.000Z", yasDakika: 1.3, kayit: 41, birlesen: 12, eklenen: 29, saatiGeriYuklenen: 0 },
+      },
+      canliMacGrubu: 2,
+      cokSitedeCanli: 2,
+      bitmis: 1,
+      saatiFarkliCanli: 1,
+      baslamamisGosterilen: 2,
+      canliKanitliEslesme: 0,
+    },
   },
   farkliMaclar: {
     FUTBOL: {
       "Premier League": {
         "2026-09-18": [
-          {
-            sport: "FUTBOL",
-            league: "Premier League",
-            date: "2026-09-18",
-            home: "Arsenal",
-            away: "Chelsea",
-            saatler: { virus_bet: "20:00", mavi_bet: "20:30", zlot: "20:00" },
-            tarihler: { virus_bet: "2026-09-18", mavi_bet: "2026-09-18", zlot: "2026-09-18" },
-            tarihFarkli: false,
-            maxFarkDakika: 30,
-            sapanSiteler: [{ site: "mavi_bet", farkDakika: 30 }],
-            eksikSiteler: ["betist"],
-            ligler: {
-              virus_bet: "England - Premier League",
-              mavi_bet: "England - Premier League",
-              zlot: "England - Premier League",
-            },
-            takimlar: {
-              virus_bet: "Arsenal - Chelsea",
-              mavi_bet: "Arsenal FC - Chelsea FC",
-              zlot: "Arsenal - Chelsea",
-            },
-            eslesme: [
-              { siteA: "virus_bet", siteB: "zlot", kimlik: "exact", ters: false, guven: 1 },
-              { siteA: "virus_bet", siteB: "mavi_bet", kimlik: "core", ters: false, guven: 0.96 },
-            ],
-          },
+          arsenalChelsea,
         ],
       },
       "Süper Lig": {
@@ -367,6 +395,7 @@ export const sampleComparedMatches: ComparedMatchesResponse = {
               { siteA: "mavi_bet", siteB: "zlot", kimlik: "exact", ters: false, guven: 1 },
               { siteA: "virus_bet", siteB: "zlot", kimlik: "exact", ters: true, guven: 1 },
             ],
+            canli: { durum: "finished", siteler: { zlot: { durum: "finished", skor: "79:84" } } },
           },
         ],
       },
@@ -394,6 +423,43 @@ export const sampleComparedMatches: ComparedMatchesResponse = {
             eslesme: [
               { siteA: "mavi_bet", siteB: "zlot", kimlik: "fuzzy", ters: false, guven: 0.9 },
             ],
+          },
+        ],
+      },
+    },
+  },
+  canliAmaBaslamamisGorunen: {
+    FUTBOL: { "Premier League": { "2026-09-18": [arsenalChelsea] } },
+    BASKETBOL: {
+      EuroLeague: {
+        "2026-09-18": [
+          {
+            // Betist's live menu carries no scheduled time, so the kick-offs
+            // cannot be compared; the fixture is only reported here.
+            sport: "BASKETBOL",
+            league: "EuroLeague",
+            date: "2026-09-18",
+            home: "Anadolu Efes",
+            away: "Real Madrid",
+            saatler: { virus_bet: "21:45", betist: "" },
+            tarihler: { virus_bet: "2026-09-18", betist: "2026-09-18" },
+            tarihFarkli: false,
+            maxFarkDakika: null,
+            sapanSiteler: [],
+            eksikSiteler: ["mavi_bet", "zlot"],
+            ligler: { virus_bet: "Europe - EuroLeague", betist: "Avrupa - " },
+            takimlar: {
+              virus_bet: "Anadolu Efes - Real Madrid",
+              betist: "Anadolu Efes SK - Real Madrid",
+            },
+            eslesme: [
+              { siteA: "virus_bet", siteB: "betist", kimlik: "core", ters: false, guven: 0.97 },
+            ],
+            canli: {
+              durum: "live",
+              siteler: { betist: { durum: "live", skor: "41:38", periyot: "Q2" } },
+              baslamamisGosteren: ["virus_bet"],
+            },
           },
         ],
       },
