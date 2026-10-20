@@ -883,6 +883,118 @@ a:hover {
   font-weight: 400;
 }
 
+.delta__note {
+  display: block;
+  margin-top: var(--s1);
+  font-size: var(--step-tiny);
+  color: var(--flag);
+  white-space: nowrap;
+}
+
+.times__date {
+  font-size: var(--step-tiny);
+  color: var(--ink-quiet);
+}
+
+.times__entry--differs .times__date {
+  color: var(--flag);
+}
+
+/* ---------------- low-similarity review ---------------- */
+
+.name-pair {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.name-pair__name {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.name-pair__vs {
+  color: var(--ink-quiet);
+  font-size: var(--step-tiny);
+}
+
+.name-pair__normalized {
+  display: block;
+  color: var(--ink-quiet);
+  font-size: var(--step-tiny);
+  font-weight: 400;
+}
+
+.similarity {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s1);
+}
+
+.similarity__value {
+  font-size: var(--step-2);
+  font-weight: 600;
+  color: var(--hold);
+  white-space: nowrap;
+}
+
+.similarity__meter {
+  width: 4.5rem;
+  height: 4px;
+  background: var(--rule);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.similarity__fill {
+  display: block;
+  height: 100%;
+  background: var(--hold);
+}
+
+.similarity__how {
+  font-size: var(--step-tiny);
+  color: var(--ink-quiet);
+  white-space: nowrap;
+}
+
+.samples {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  font-size: var(--step-small);
+}
+
+.samples__item {
+  display: grid;
+  grid-template-columns: minmax(4.5rem, auto) 1fr;
+  column-gap: var(--s2);
+  row-gap: 1px;
+}
+
+.samples__site {
+  color: var(--ink-quiet);
+  font-size: var(--step-tiny);
+  font-stretch: 87.5%;
+  white-space: nowrap;
+}
+
+.samples__fixture {
+  overflow-wrap: anywhere;
+}
+
+.samples__meta {
+  grid-column: 2;
+  color: var(--ink-quiet);
+  font-size: var(--step-tiny);
+}
+
+.samples__more {
+  color: var(--ink-quiet);
+  font-size: var(--step-tiny);
+}
+
 .times__note {
   font-size: var(--step-small);
   color: var(--ink-quiet);

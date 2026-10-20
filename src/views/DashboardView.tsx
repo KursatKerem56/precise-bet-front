@@ -112,7 +112,11 @@ export function DashboardView({
           <MetricCard
             value={formatNumber(summary.karsilastirilabilir)}
             label="Comparable"
-            hint="Found on two or more sites"
+            hint={
+                summary.saatEksik
+                  ? `On 2+ sites; ${formatNumber(summary.saatEksik)} more lack a readable time`
+                  : "Found on two or more sites"
+              }
             loading={compared.loading}
           />
           <MetricCard

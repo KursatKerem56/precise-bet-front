@@ -1,7 +1,7 @@
 import { SITE_LABELS } from "../types/domain";
 import type { ComparisonRecord } from "../types/comparison";
 import type { TableColumn } from "./DataTable";
-import { formatDate, formatMinutes, formatTime } from "../lib/format";
+import { formatDate, formatDateShort, formatMinutes, formatTime } from "../lib/format";
 import { StatusBadge } from "./StatusBadge";
 import { SportTag } from "./Tags";
 
@@ -62,9 +62,13 @@ export function ComparisonRow({ record }: { record: ComparisonRecord }) {
               <span
                 key={entry.site}
                 className={`times__entry${entry.differs ? " times__entry--differs" : ""}`}
+                title={entry.teams ? `${SITE_LABELS[entry.site]}: ${entry.teams}` : undefined}
               >
                 <span className="times__site">{SITE_LABELS[entry.site]}</span>
                 <span className="times__clock">{formatTime(entry.time)}</span>
+                {record.dateDiffers && entry.date ? (
+                  <span className="times__date">{formatDateShort(entry.date)}</span>
+                ) : null}
               </span>
             ))
           ) : (
@@ -83,8 +87,14 @@ export function ComparisonRow({ record }: { record: ComparisonRecord }) {
         {record.spreadMinutes !== null && record.spreadMinutes > 0 ? (
           <span className="delta">+{formatMinutes(record.spreadMinutes)}</span>
         ) : (
-          <span className="delta delta--none">Not comparable</span>
+          <span
+            className="delta delta--none"
+            title="Fewer than two sites reported a readable kick-off for this fixture"
+          >
+            Not comparable
+          </span>
         )}
+        {record.dateDiffers ? <span className="delta__note">Different day</span> : null}
       </td>
     </tr>
   );
